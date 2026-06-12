@@ -1,3 +1,6 @@
+# Archive (local backups)
+архив/
+
 # NX / CAM
 *.prt
 *.out
