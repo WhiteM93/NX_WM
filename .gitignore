@@ -1,0 +1,17 @@
+# NX / CAM
+*.prt
+*.out
+*.log
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Obsidian cache (notes are kept)
+Obsidian/.obsidian/workspace.json
+Obsidian/.obsidian/workspace-mobile.json

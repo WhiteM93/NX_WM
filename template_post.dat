@@ -1,0 +1,18 @@
+#####################################################################
+# template_post.dat — список постов (всё кроме архива)
+#####################################################################
+# Посты WM_TOOL_LIST и 6.WM_TOOL_LIST используют шаблоны из корня:
+#   post_tool_list_html.tpl, post_tool_list_text.tpl (цикл SETUP→PROGRAMVIEW→TOOL).
+# Стиль HTML задаётся в .tcl (ShopDoc_Header_html, Setup_Header_html).
+#####################################################################
+
+# --- Основные посты ---
+1.ai_3ax,${UGII_CAM_POST_DIR}1.ai_3ax\ai_3ax.tcl,${UGII_CAM_POST_DIR}1.ai_3ax\ai_3ax.def
+2.Cutter_CH,${UGII_CAM_POST_DIR}2.Cutter CH\Cutter CH.tcl,${UGII_CAM_POST_DIR}2.Cutter CH\Cutter CH.def
+3.Sicono_cnc,${UGII_CAM_POST_DIR}3.Sicono\cnc_0.1.tcl,${UGII_CAM_POST_DIR}3.Sicono\cnc_0.1.def
+4.KVL_650,${UGII_CAM_POST_DIR}4.KVL_650\KVL_650.tcl,${UGII_CAM_POST_DIR}4.KVL_650\KVL_650.def
+5.Fanuc_4ax,${UGII_CAM_POST_DIR}5.Fanuc_4ax\Fanuc_4ax.tcl,${UGII_CAM_POST_DIR}5.Fanuc_4ax\Fanuc_4ax.def
+6.Fanuc (ConfigPos NX),${UGII_CAM_POST_DIR}6.Fanuc (ConfigPos NX)\Fanuc.tcl,${UGII_CAM_POST_DIR}6.Fanuc (ConfigPos NX)\Fanuc.def
+
+# --- Список операций (WM) ---
+7.WM_TOOL_LIST(pdf),${UGII_CAM_POST_DIR}8.WM_TOOL_LIST\WM_OPERATION_LIST_pdf.tcl,${UGII_CAM_POST_DIR}8.WM_TOOL_LIST\WM_OPERATION_LIST.def

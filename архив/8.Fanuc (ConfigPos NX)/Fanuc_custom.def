@@ -1,0 +1,164 @@
+#############################################################################################
+#
+#    Customer Data
+#
+#    Company         :
+#    Address         :
+#    Contact Person  :
+#    Phone           :
+#    Fax             :
+#    Mail            :
+#
+#############################################################################################
+#
+#    Copyright 2014-2019 Siemens Product Lifecycle Management Software Inc.
+#                All Rights Reserved.
+#    Copyright (c) 2012-2015 Siemens Industry Software GmbH & Co. KG
+#
+#    Die Quellcodes der Programme sind urheberrechtlich geschuetzt und
+#    duerfen ohne Zustimmung von Siemens Industry Software GmbH & Co. KG weder kopiert noch
+#    fuer andere Zwecke weiterverwendet werden.
+#
+#    The source of the programs is protected by Copyright.
+#    You are not allowed to make any copies or modifications
+#    without consent of Siemens Industry Software GmbH & Co. KG.
+#
+#############################################################################################
+MACHINE DEFAULT
+FORMATTING
+{
+  FORMAT Digit_command "&_02_00"
+  FORMAT Tcode "&_02_00"
+  FORMAT Zero_command "&_01_0_"
+  ADDRESS Z_home
+  {
+  	FORMAT Coordinate
+  	FORCE always
+  	MAX 99999.999000 Truncate
+  	MIN -99999.999000 Truncate
+  	LEADER "Z"
+  }
+  ADDRESS G_cutcom
+  {
+  	FORMAT Digit_command
+  	FORCE off
+  	LEADER "G"
+  	ZERO_FORMAT Zero_command
+  }
+  ADDRESS T
+  {
+  	FORMAT Tcode
+  	FORCE off
+  	LEADER "T"
+  	TRAILER " "
+  	ZERO_FORMAT Zero_int
+  }
+  ADDRESS M
+  {
+  	FORMAT Digit_command
+  	FORCE always
+  	LEADER [$::mom_sys_leader(M)]
+  	TRAILER [$::mom_sys_trailer(M)]
+  	ZERO_FORMAT Zero_command
+  }
+  BLOCK_TEMPLATE coolant_on
+  {
+  	M_coolant[$mom_sys_coolant_code(ON)]
+  }
+  BLOCK_TEMPLATE cycle_tap_deep
+  {
+  	G_plane[$mom_sys_cutcom_plane_code($mom_cutcom_plane)]\opt
+  	G_feed[$mom_sys_feed_rate_mode_code($feed_mode)]
+  	G_motion[$mom_sys_cycle_tap_code]
+  	G_cycle_return[$mom_sys_cycle_ret_code($mom_cycle_retract_mode)]\opt
+  	G_mode[$mom_sys_output_code($mom_output_mode)]
+  	X[$mom_cycle_feed_to_pos(0)*$x_factor]
+  	Y[$mom_cycle_feed_to_pos(1)]
+  	Z[$mom_cycle_feed_to_pos(2)]
+  	fourth_axis[$mom_out_angle_pos(0)]
+  	fifth_axis[$mom_out_angle_pos(1)]
+  	F[$feed]
+  	R_cycle[$mom_cycle_rapid_to_pos($tool_axis)*$cycle_factor]
+  	Q_cycle[$mom_cycle_step1]\opt
+  	M_coolant[$mom_sys_coolant_code(ON)]\opt
+  }
+  BLOCK_TEMPLATE cycle_tap
+  {
+  	G_plane[$mom_sys_cutcom_plane_code($mom_cutcom_plane)]\opt
+  	G_motion[$mom_sys_cycle_tap_code]
+  	G_feed[$mom_sys_feed_rate_mode_code($feed_mode)]
+  	G_cycle_return[$mom_sys_cycle_ret_code($mom_cycle_retract_mode)]\opt
+  	G_mode[$mom_sys_output_code($mom_output_mode)]
+  	X[$mom_cycle_feed_to_pos(0)*$x_factor]
+  	Y[$mom_cycle_feed_to_pos(1)]
+  	Z[$mom_cycle_feed_to_pos(2)]
+  	fourth_axis[$mom_out_angle_pos(0)]
+  	fifth_axis[$mom_out_angle_pos(1)]
+  	F[$feed]
+  	R_cycle[$mom_cycle_rapid_to_pos($tool_axis)*$cycle_factor]
+  	M_coolant[$mom_sys_coolant_code(ON)]\opt
+  }
+  BLOCK_TEMPLATE cycle_drill_deep
+  {
+  	G_plane[$mom_sys_cutcom_plane_code($mom_cutcom_plane)]\opt
+  	G_feed[$mom_sys_feed_rate_mode_code($feed_mode)]
+  	G_motion[$mom_sys_cycle_drill_deep_code]
+  	G_cycle_return[$mom_sys_cycle_ret_code($mom_cycle_retract_mode)]\opt
+  	G_mode[$mom_sys_output_code($mom_output_mode)]
+  	X[$mom_cycle_feed_to_pos(0)*$x_factor]
+  	Y[$mom_cycle_feed_to_pos(1)]
+  	Z[$mom_cycle_feed_to_pos(2)]
+  	fourth_axis[$mom_out_angle_pos(0)]
+  	fifth_axis[$mom_out_angle_pos(1)]
+  	F[$feed]
+  	Q_cycle[$mom_cycle_step1]
+  	R_cycle[$mom_cycle_rapid_to_pos($tool_axis)*$cycle_factor]
+  	M_coolant[$mom_sys_coolant_code(ON)]\opt
+  }
+  BLOCK_TEMPLATE main_zero
+  {
+  	M_coolant[8]
+  	G_zero[$lib_main_zero_register]
+  }
+  BLOCK_TEMPLATE return_move
+  {
+  	G[91]
+  	G[28]
+  	Z[0]
+  }
+  BLOCK_TEMPLATE start_of_program
+  {
+  	G_cutcom[40]
+  	G_cutcom[$mom_sys_cutcom_code(OFF)]
+  	G_cutcom[49]
+  	G_mode[$mom_sys_output_code(ABSOLUTE)]
+  	G_plane[$mom_sys_cutcom_plane_code($mom_cutcom_plane)]\opt
+  	G_unit[$mom_sys_unit_code($mom_output_unit)]\opt
+  	G_feed[$mom_sys_feed_rate_mode_code($feed_mode)]\opt
+  	G[80]
+  }
+  BLOCK_TEMPLATE return_move2
+  {
+  	G_motion[$mom_sys_rapid_code]
+  	G_return[$mom_sys_home_code]
+  	G_mode[$mom_sys_output_code($mom_output_mode)]
+  	X[$mom_sys_home_pos(0)]
+  	Y[$mom_sys_home_pos(1)]
+  }
+  BLOCK_TEMPLATE tool_change
+  {
+  	T[$mom_tool_number]
+  	M[$mom_sys_tool_change_code]
+  }
+  BLOCK_TEMPLATE coordinate_system
+  {
+  	G[$mom_sys_reset_code]
+  }
+  BLOCK_TEMPLATE absolute_mode
+  {
+  	G_cutcom[$mom_sys_cutcom_code(OFF)]
+  	G_plane[$mom_sys_cutcom_plane_code(XY)]\opt
+  	G_mode[$mom_sys_output_code(ABSOLUTE)]
+  	G[$mom_sys_unit_code($mom_output_unit)]\opt
+  }
+}

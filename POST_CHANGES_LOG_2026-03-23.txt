@@ -1,0 +1,134 @@
+POST CHANGES LOG
+Date: 2026-03-23
+Workspace: D:\YandexDisk\CNC_MW\Документы\Posts\NX_WM
+
+========================================================================
+1) CHANGES IN POST: 1.ai_3ax
+========================================================================
+
+Goal:
+- Fix tapping cycle output (G84) format:
+  first line with G84 + R + F (+Q only when needed),
+  next lines with X Y Z only.
+- Do not output Q when Q=0.
+- Keep post stable in NX (no do_event errors).
+
+Backup created:
+- Folder copied to archive:
+  архив\1.ai_3ax_backup_20260323_220155
+
+Files changed:
+- 1.ai_3ax\ai_3ax.tcl
+- 1.ai_3ax\ai_3ax.def
+
+Main edits in ai_3ax.tcl:
+- Added handling in tapping events so that:
+  - first tapping point outputs full cycle line (G84 ... R ... F ...),
+  - subsequent tapping points output only X Y Z.
+- Applied this logic in:
+  - MOM_tap_move
+  - MOM_tap_deep_move
+  - TAP branch in MOM_linear_move (for cases when NX emits linear moves).
+- Added safe helper:
+  - PB_CMD_prepare_tap_cycle_step
+  - purpose: suppress Q output when step value is 0 or empty.
+- Removed FEED_SET calls from:
+  - MOM_tap_move
+  - MOM_tap_deep_move
+  Reason: NX runtime error "invalid command name FEED_SET".
+- Fixed boolean checks using cycle_init_flag:
+  - replaced direct boolean expression with string-safe check:
+    [string match "TRUE" $cycle_init_flag]
+  Reason: avoid Tcl do_event failures with string flags.
+
+Main edits in ai_3ax.def:
+- Added block template:
+  - cycle_tap_repeat (X Y Z only)
+  Note: later output logic moved to forcing addresses with cycle_tap template,
+  but template remains in file and is harmless.
+
+Observed runtime issue and fix:
+- Error found in log (1.ai_3ax\1.txt):
+  TCL_ERROR in MOM_tap_move: invalid command name "FEED_SET"
+- Fixed by removing FEED_SET from tap move procedures.
+
+========================================================================
+2) CREATED NEW POST: 1.ai_4ax
+========================================================================
+
+Goal:
+- Create a copy of 1.ai_3ax with 4th axis support.
+- 4th axis must output as A.
+
+Folder and files created:
+- 1.ai_4ax\
+  - ai_4ax.tcl
+  - ai_4ax.def
+  - ai_4ax.pui
+
+How it was created:
+- Copied folder:
+  1.ai_3ax -> 1.ai_4ax
+- Renamed files:
+  ai_3ax.tcl -> ai_4ax.tcl
+  ai_3ax.def -> ai_4ax.def
+  ai_3ax.pui -> ai_4ax.pui
+- Removed copied runtime log:
+  1.ai_4ax\1.txt
+
+Edits in ai_4ax.pui:
+- def_file updated:
+  ai_4ax.def
+- tcl_file updated:
+  ai_4ax.tcl
+- Description updated to 4-axis.
+- Alt unit post name updated:
+  ai_4ax__IN.pui
+- 4th axis leader updated to A.
+- System leader map updated:
+  fourth_axis -> A
+  fifth_axis  -> C
+- Machine type updated:
+  4_axis_mill
+
+Edits in ai_4ax.tcl:
+- Header/description changed from 3-axis to 4-axis.
+- Updated:
+  mom_sys_alt_unit_post_name = ai_4ax__IN.pui
+  mom_sys_post_description   = ai_4ax 4-axis mill (A axis, wm93)
+  mom_kin_machine_type       = 4_axis_mill
+- Leader settings:
+  mom_sys_leader(fourth_axis) = A
+  mom_kin_4th_axis_leader      = A
+  mom_sys_leader(fifth_axis)   = C
+- Kinematics adjusted to A-table behavior:
+  mom_kin_4th_axis_plane       = YZ
+  mom_kin_4th_axis_vector(0)   = 1.0
+  mom_kin_4th_axis_vector(1)   = 0.0
+  mom_kin_4th_axis_vector(2)   = 0.0
+
+Edits in ai_4ax.def:
+- Added fourth_axis output to major move templates:
+  - from
+  - linear_move
+  - rapid_spindle
+  - rapid_spindle_x
+  - rapid_spindle_y
+  - rapid_spindle_z
+  - rapid_traverse
+  - rapid_traverse_xy
+  - rapid_traverse_yz
+  - rapid_traverse_xz
+This ensures A-axis is emitted in NC output when 4th-axis position changes.
+
+========================================================================
+3) REFERENCE USED FOR COMPARISON
+========================================================================
+
+Compared behavior with:
+- sim04_mill_4ax
+and aligned key kinematics settings for A-axis behavior.
+
+========================================================================
+END OF LOG
+========================================================================
