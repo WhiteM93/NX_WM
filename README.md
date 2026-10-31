@@ -7,31 +7,40 @@
 | Папка | Описание |
 |-------|----------|
 | `1.ai_3ax` | 3-осевой пост |
+| `1.ai_3ax_probe` | 3-осевой пост с поддержкой измерений щупом (Hexagon) |
 | `1.ai_4ax` | 4-осевой пост |
 | `2.Cutter CH` | Cutter CH |
 | `3.Sicono` | Sicono CNC |
-| `4.KVL_650` | KVL 650 |
-| `5.Fanuc_4ax` | Fanuc 4-осевой |
-| `6.Fanuc (ConfigPos NX)` | Fanuc с ConfigPos NX |
-| `8.WM_TOOL_LIST` | Список операций / инструментов (PDF) |
-| `mill_4_axis` | Шаблон 4-осевого фрезерного поста |
 
 Список постов для установки в NX — в файле `template_post.dat`.
 
-## Установка
+## Щуп и UDE (Hexagon)
 
-1. Скопировать папку в каталог постов NX (`UGII_CAM_POST_DIR`).
-2. Добавить записи из `template_post.dat` в `template_post.dat` NX (или заменить при необходимости).
-3. Перезапустить NX CAM Post Builder / обновить список постов.
+Пост `1.ai_3ax_probe` включает UDE-события:
+
+1. **Probe wall check**
+2. **Probe set Z top**
+3. **Probe set boss center**
+4. **Probe set hole center**
+
+Для событий измерения доступен переключатель **Feed override**.
+
+## Установка Probe_Installer на другой ПК
+
+В репозитории есть папка `Probe_Installer/` с установщиком поста `1.ai_3ax_probe` и UDE-файлов.
+
+1. Запустить `Probe_Installer/install.bat`.
+2. Рекомендуется сначала выполнить установку в режиме `-DryRun`.
+3. Для отката использовать режим `-Uninstall`.
+
+Установщик изменяет строку `USER_DEFINED_EVENTS` в `cam_general.dat` и записи в `template_post.dat`, перед изменениями делает резервные копии в `E:\\NX_Tools\\Backup`.
 
 ## Структура
 
 - `*.tcl` — основной код постпроцессора
 - `*.def` — определение поста
 - `*.pui` — интерфейс Post Builder
-- `*.tbc` — скомпилированные библиотеки
 - `ugpost_base.tcl` — базовые функции поста
-- `архив/` — резервные копии и старые версии
 
 ## Журнал изменений
 
