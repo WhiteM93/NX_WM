@@ -1147,23 +1147,12 @@ proc MOM_end_of_path { } {
       MOM_do_template cycle_off
       unset mom_sys_tap_empty_path_output
    }
-   set mom_sys_was_tap_operation 0
    if { [info exists cycle_name] && [string compare $cycle_name "TAP"] == 0 } {
-      set mom_sys_was_tap_operation 1
       unset cycle_name
    }
 
    MOM_force Once M_coolant
    MOM_do_template retract_move
-
-   # После M09 станок ждёт повторный пуск шпинделя в следующей операции резьбы.
-   if { $mom_sys_was_tap_operation } {
-      global mom_spindle_status
-      set mom_spindle_status OFF
-      catch { MOM_reload_variable mom_spindle_status }
-   }
-   unset mom_sys_was_tap_operation
-
    global mom_sys_in_operation
    set mom_sys_in_operation 0
 }
@@ -1565,7 +1554,6 @@ proc MOM_start_of_path { } {
       set mom_sys_tool_list_output_done 1
    }
 
-   PB_CMD_reset_rapid_output_state_for_operation
    PB_CMD_start_of_operation_force_addresses
 
    global mom_path_name
@@ -3155,39 +3143,6 @@ proc PB_CMD_start_of_alignment_character { } {
    global mom_sys_leader saved_seq_num
    set saved_seq_num $mom_sys_leader(N)
    set mom_sys_leader(N) ":"
-}
-
-
-#=============================================================
-proc PB_CMD_reset_rapid_output_state_for_operation { } {
-#=============================================================
-# Сброс состояния быстрых подводов в начале операции.
-# Без этого при одинаковых XY/Z подряд RAPID_SET блокирует вывод S M03
-# (rapid_traverse_inhibit / rapid_spindle_inhibit), что ломает G84 со 2-й операции.
-   global mom_prev_pos mom_last_pos mom_cycle_spindle_axis mom_spindle_status
-   global mom_sys_tool_change_pos
-
-   if { ![info exists mom_cycle_spindle_axis] } {
-      set mom_cycle_spindle_axis 2
-   }
-
-   if { ![info exists mom_sys_tool_change_pos($mom_cycle_spindle_axis)] } {
-      set mom_sys_tool_change_pos($mom_cycle_spindle_axis) 100000.0
-   }
-
-   set mom_last_pos($mom_cycle_spindle_axis) $mom_sys_tool_change_pos($mom_cycle_spindle_axis)
-
-   set mom_prev_pos(0) 999999.999
-   set mom_prev_pos(1) 999999.999
-   set mom_prev_pos(3) 999999.999
-   set mom_prev_pos(4) 999999.999
-   catch { MOM_reload_variable mom_prev_pos }
-   catch { MOM_reload_variable mom_last_pos }
-
-   if { [info exists mom_spindle_status] && ![string match "UNDEFINED" $mom_spindle_status] } {
-      set mom_spindle_status OFF
-      catch { MOM_reload_variable mom_spindle_status }
-   }
 }
 
 
