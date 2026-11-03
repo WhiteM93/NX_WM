@@ -1,11 +1,11 @@
 ##############################################################################
 #  probe_omp.tcl  -  On Machine Probing (NX CAM type "probing") -> Max macros
-#  Post: 1.ai_3ax_omp (copy of 1.ai_3ax), Fanuc 0i-MF Plus + Hexagon probe.
-#  Loaded by ONE source line at the end of ai_3ax_omp.tcl.
+#  Post: 1.ai_3ax (merged 2026-11-03), Fanuc 0i-MF Plus + Hexagon probe.
+#  Loaded by the probing loader at the end of ai_3ax.tcl.
 #
 #  Macros:  G65 P9101 A1./A0.  probe on/off  (::prb_probe_switch)
 #           G65 P9102 X/Y/Z F#170          protected positioning (F#172 in UDE prb_center_axis)
-#           G65 P9103 X/Y/Z or D F#170     measuring touch
+#           G65 P9103 X/Y/Z (no F) or D F#170  measuring touch
 #  Results: X->#101 Y->#102 Z->#103 D->#100
 #  Own vars: #152-#199 (#190-192 reserved wall check), #170 feed, #171 W, #172 move feed (UDE prb_center_axis).
 #  Rules: no GOTO, no M60, never XY and Z in one block, G90 after G91,
@@ -395,7 +395,7 @@ proc PRB_touch { ev tx ty tz dx dy dz src } {
       PRB_move $tx $ty $zc
       PRB_movez [expr {$tz + $so}]
       PRB_clear 152
-      PRB_out "G65 P9103 Z[PRB_fmt $tz] F#170"
+      PRB_out "G65 P9103 Z[PRB_fmt $tz]"
       PRB_out "#152=#103[PRB_sub $tz]"
       if {$::prb_write_z} { PRB_shift [PRB_def_wcs $tw] {{Z 152}} } else { PRB_out "(TOLKO IZMERENIE)" }
       PRB_msg "Z=&#103&"
@@ -412,7 +412,7 @@ proc PRB_touch { ev tx ty tz dx dy dz src } {
    } else {
       PRB_movez $tz
    }
-   PRB_out "G65 P9103 $A[PRB_fmt $t] F#170"
+   PRB_out "G65 P9103 $A[PRB_fmt $t]"
    if {$::prb_write_single} {
       PRB_clear 152
       PRB_out "#152=#$r[PRB_sub $t]"

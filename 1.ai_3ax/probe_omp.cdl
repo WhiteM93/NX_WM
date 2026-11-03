@@ -1,7 +1,7 @@
 ##############################################################################
-#  probe_omp.cdl  -  User Defined Events for post 1.ai_3ax_omp
+#  probe_omp.cdl  -  User Defined Events for post 1.ai_3ax
 #  Handler: proc MOM_prb_center_axis in probe_omp.tcl
-#  Included from ai_3ax_omp.def:  $UGII_CAM_POST_DIR/1.ai_3ax_omp/probe_omp.cdl
+#  Included from ai_3ax.def:  $UGII_CAM_POST_DIR/1.ai_3ax/probe_omp.cdl
 #  Param types used: p (point, picked in NX), v (vector, NX vector dialog),
 #  d, i, o.  Option values are Russian; Tcl compares them via \u escapes,
 #  ASCII content (G54..G59, G54.1) and trimmed length / space count:

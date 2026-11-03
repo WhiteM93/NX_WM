@@ -7,6 +7,8 @@
     -Yes             не спрашивать подтверждения (template_post.dat / cam_general.dat)
     -IncludeBase     также предлагать ugpost_base*.tcl (базовые файлы Siemens)
     -BackupRoot      куда класть резервные копии (по умолчанию E:\NX_Tools\Backup)
+  Устаревшие посты 1.ai_3ax_omp и 1.ai_3ax_probe (объединены в 1.ai_3ax) установщик
+  сохраняет в резервную копию, затем удаляет из NX вместе с их строками template_post.dat.
 #>
 param(
   [string]$NxDir,
@@ -20,7 +22,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $Repo = $PSScriptRoot
 $Raw  = [Text.Encoding]::GetEncoding(28591)   # байт-в-байт (кодировка сохраняется)
-$PostFolders = @('1.ai_3ax','1.ai_3ax_omp','1.ai_3ax_probe','1.ai_4ax','2.Cutter CH','3.Sicono')
+$PostFolders = @('1.ai_3ax','1.ai_4ax','2.Cutter CH','3.Sicono')
+$ObsoleteFolders = @('1.ai_3ax_omp','1.ai_3ax_probe')   # объединены в 1.ai_3ax (2026-11-03)
 $RootFiles   = @('ude_wm.cdl')
 $BaseFiles   = @('ugpost_base.tcl','ugpost_base_math.tcl')
 
@@ -113,6 +116,18 @@ foreach ($f in $BaseFiles) {
 Say "`nФайлы к копированию: $($plan.Count)" 'Cyan'
 foreach ($p in $plan) { $st = if (Test-Path -LiteralPath (Join-Path $Res $p.rel)) { 'изменён' } else { 'новый' }; Say "  [$st] $($p.rel)" }
 
+# 2b) устаревшие папки постов в NX: резервная копия, затем удаление
+$obsFiles = @()
+$obsDirs  = @()
+foreach ($f in $ObsoleteFolders) {
+  $d = Join-Path $Post $f
+  if (Test-Path -LiteralPath $d) {
+    $obsDirs += $d
+    Get-ChildItem -LiteralPath $d -Recurse -File | ForEach-Object { $obsFiles += 'postprocessor\' + $_.FullName.Substring($Post.Length + 1) }
+    Say "  [УДАЛИТЬ] postprocessor\$f (устаревший пост, объединён в 1.ai_3ax)" 'Yellow'
+  }
+}
+
 # 3) template_post.dat — только наши строки
 function Split-Lines($t){ $t -split "`r?`n" }
 $tplT = Join-Path $Post 'template_post.dat'
@@ -131,6 +146,11 @@ if (Test-Path -LiteralPath $tplT) {
     if ($idx -ge 0) {
       if ($lines[$idx] -ne $ol) { Say "template_post.dat заменить:`n  было:  $($lines[$idx])`n  стало: $ol" 'Yellow'; $lines[$idx] = $ol; $changed = $true }
     } else { Say "template_post.dat добавить:`n  стало: $ol" 'Yellow'; [void]$lines.Add($ol); $changed = $true }
+  }
+  for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+    if ($ObsoleteFolders -contains (($lines[$i] -split ',')[0].Trim())) {
+      Say "template_post.dat удалить:`n  было:  $($lines[$i])" 'Yellow'; $lines.RemoveAt($i); $changed = $true
+    }
   }
   if ($changed) { $new = ($lines -join $nl); if ($trail) { $new += $nl }; $tplPlan = $new } else { Say "template_post.dat: изменений нет" }
 }
@@ -154,12 +174,15 @@ if ($DryRun) { Say "`n-DryRun: ничего не изменено." 'Green'; exi
 $doTpl = $false; $doCfg = $false
 if ($tplPlan) { $doTpl = Confirm-D 'Изменить template_post.dat?' }
 if ($cfgPlan) { $doCfg = Confirm-D 'Изменить cam_general.dat?' }
+$doObs = $false
+if ($obsDirs.Count) { $doObs = Confirm-D 'Удалить устаревшие папки 1.ai_3ax_omp / 1.ai_3ax_probe (после резервной копии)?' }
 
 # резервная копия + манифест
 $manifest = @()
 $all = @($plan | ForEach-Object { $_.rel })
 if ($doTpl) { $all += 'postprocessor\template_post.dat' }
 if ($doCfg) { $all += 'configuration\cam_general.dat' }
+if ($doObs) { $all += $obsFiles }
 foreach ($rel in $all) {
   $t = Join-Path $Res $rel; $ex = Test-Path -LiteralPath $t
   if ($ex) { $b = Join-Path $Bk ('files\' + $rel); New-Item -ItemType Directory -Force (Split-Path $b) | Out-Null; Copy-Item -LiteralPath $t -Destination $b -Force }
@@ -177,6 +200,9 @@ foreach ($p in $plan) {
 }
 if ($doTpl) { [IO.File]::WriteAllText($tplT, $tplPlan, $Raw); Say "template_post.dat обновлён" 'Green' }
 if ($doCfg) { [IO.File]::WriteAllText($Cfg, $cfgPlan, $Raw); Say "cam_general.dat обновлён" 'Green' }
+if ($doObs) {
+  foreach ($d in $obsDirs) { Remove-Item -LiteralPath $d -Recurse -Force; Say "Удалена устаревшая папка: $d" 'Green' }
+}
 
 Say "`nГотово. Скопировано файлов: $($plan.Count), ошибок хэша: $fail" $(if ($fail) {'Red'} else {'Green'})
 Say "Откат: install.bat -Uninstall"

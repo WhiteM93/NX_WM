@@ -1,6 +1,6 @@
 ########################## TCL Event Handlers ##########################
 #
-#  ai_3ax.tcl - 3-axis mill
+#  ai_3ax.tcl - 3-axis mill + probing (probe_omp.tcl, probe_wall_check.tcl, probe_set.tcl)
 #  Author: wm93
 #
 #  3-axis milling machine.
@@ -260,7 +260,7 @@ proc PB_CMD___log_revisions { } {
   set mom_sys_advanced_turbo_output             "0"
   set mom_sys_tool_number_max                   "10"
   set mom_sys_tool_number_min                   "1"
-  set mom_sys_post_description                  "ai_3ax 3-axis mill (wm93)"
+  set mom_sys_post_description                  "ai_3ax 3-axis mill + probing (wm93)"
   set mom_sys_word_separator                    " "
   set mom_sys_end_of_block                      ""
   set mom_sys_ugpadvkins_used                   "0"
@@ -1138,7 +1138,7 @@ proc MOM_end_of_path { } {
       PB_CMD_kin_end_of_path
    }
 
-   # Если резьба выводилась как станочный цикл из linear_move или при пустой траектории — отменить цикл G80
+   # If the thread was output as a machine cycle from linear_move or on an empty path - cancel the cycle with G80
    if { [info exists mom_sys_tap_linear_converted] && $mom_sys_tap_linear_converted } {
       MOM_do_template cycle_off
       unset mom_sys_tap_linear_converted
@@ -1291,8 +1291,8 @@ proc MOM_linear_move { } {
 
    ABORT_EVENT_CHECK
 
-   # Если операция — нарезание резьбы (TAP), но NX отдаёт линейные ходы вместо цикла,
-   # выводим станочный цикл G84 по текущей позиции.
+   # If the operation is tapping (TAP) but NX outputs linear moves instead of a cycle,
+   # output the machine cycle G84 at the current position.
    if { [info exists cycle_name] && [string compare $cycle_name "TAP"] == 0 } {
       if { ![info exists mom_cycle_spindle_axis] } { set mom_cycle_spindle_axis 2 }
       set mom_cycle_feed_to_pos(0) $mom_pos(0)
@@ -1559,7 +1559,7 @@ proc MOM_start_of_path { } {
    global mom_path_name
    MOM_output_literal "(OPERATION NAME: $mom_path_name)"
 
-   # Пустая траектория резьбы: как в Fanuc (ConfigPos) — выводим цикл через шаблон с заполненными переменными
+   # Empty thread path: as in Fanuc (ConfigPos) - output the cycle via the template with filled variables
    global mom_empty_path mom_template_subtype mom_msys_origin mom_top_offset_value
    global mom_cycle_feed_to_pos mom_cycle_rapid_to_pos mom_cycle_spindle_axis
    global cycle_name mom_sys_tap_empty_path_output
@@ -1622,7 +1622,7 @@ proc PB_CMD_prepare_tap_cycle_step { } {
 #=============================================================
    global mom_cycle_step1
 
-   # Не выводим Q, если шаг резьбы/глубина шага равны 0.
+   # Do not output Q if the thread pitch / step depth is 0.
    if { [info exists mom_cycle_step1] } {
       set q_val [string trim $mom_cycle_step1]
       if { $q_val eq "" } {
@@ -4520,4 +4520,21 @@ if [info exists mom_sys_start_of_program_flag] {
 } else {
    set mom_sys_head_change_init_program 1
    set mom_sys_start_of_program_flag 1
+}
+
+
+# --- Probing handlers (merged from 1.ai_3ax_omp + 1.ai_3ax_probe, 2026-11-03) ---
+# probe_omp.tcl        : NX On Machine Probing events + UDE prb_center_axis (P9101/P9102/P9103)
+# probe_wall_check.tcl : UDE probe_wall_check
+# probe_set.tcl        : UDE probe_set_z_top / probe_set_boss_center / probe_set_hole_center
+# Order matters: probe_omp first (wraps MOM_tool_change/start/end_of_path, rapid/linear,
+# do_template), then probe_wall_check (wraps tool_change/first_tool/initial/first_move).
+# Each file is taken next to this post (info script), fallback $env(UGII_CAM_POST_DIR)/1.ai_3ax/.
+set ai3_post_dir [file dirname [info script]]
+foreach ai3_prb_file {probe_omp.tcl probe_wall_check.tcl probe_set.tcl} {
+   set ai3_prb_path [file join $ai3_post_dir $ai3_prb_file]
+   if { ![file exists $ai3_prb_path] } { catch { set ai3_prb_path [file join $env(UGII_CAM_POST_DIR) 1.ai_3ax $ai3_prb_file] } }
+   if { [catch { source $ai3_prb_path } ai3_prb_err] } {
+      catch { MOM_output_to_listing_device "$ai3_prb_file not loaded ($ai3_prb_path): $ai3_prb_err" }
+   }
 }

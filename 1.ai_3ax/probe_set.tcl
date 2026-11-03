@@ -8,7 +8,7 @@
 #  post has not loaded it yet.
 #
 #  Output example, boss: X0 Y0, D50, Zdepth -10, Zsafe 50, Zappr 10,
-#  F1000, W1, T20:
+#  F1000, W1, T20 (single touch P9103 Z.. never has F):
 #    G90 G40 G80 G17
 #    #170=1000. (PODACHA PODVODA)
 #    #171=1. (NOL W)
@@ -35,7 +35,9 @@
 ##############################################################################
 
 if { ![llength [info commands PWC_fmt]] } {
-   source [file join [file dirname [info script]] probe_wall_check.tcl]
+   set pst_pwc_file [file join [file dirname [info script]] probe_wall_check.tcl]
+   if { ![file exists $pst_pwc_file] } { catch { set pst_pwc_file [file join $env(UGII_CAM_POST_DIR) 1.ai_3ax probe_wall_check.tcl] } }
+   source $pst_pwc_file
 }
 
 proc PST_error { ev msg } {
@@ -130,7 +132,7 @@ proc MOM_probe_set_z_top { } {
    set zn [PWC_num pst_z_nom 0.0]
    if { $a(za) <= $zn } { PST_error $ev "Z approach ($a(za)) must be above Z nominal ($zn)" }
    PST_head a
-   MOM_output_literal "G65 P9103 Z[PWC_fmt $zn] W#171$a(F)"
+   MOM_output_literal "G65 P9103 Z[PWC_fmt $zn] W#171"
    PST_tail a "Z NOL ZAPISAN. Z=&#103&"
 }
 

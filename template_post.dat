@@ -8,8 +8,6 @@
 
 # --- Основные посты ---
 1.ai_3ax,${UGII_CAM_POST_DIR}1.ai_3ax\ai_3ax.tcl,${UGII_CAM_POST_DIR}1.ai_3ax\ai_3ax.def
-1.ai_3ax_probe,${UGII_CAM_POST_DIR}1.ai_3ax_probe\ai_3ax_probe.tcl,${UGII_CAM_POST_DIR}1.ai_3ax_probe\ai_3ax_probe.def
-1.ai_3ax_omp,${UGII_CAM_POST_DIR}1.ai_3ax_omp\ai_3ax_omp.tcl,${UGII_CAM_POST_DIR}1.ai_3ax_omp\ai_3ax_omp.def
 2.Cutter_CH,${UGII_CAM_POST_DIR}2.Cutter CH\Cutter CH.tcl,${UGII_CAM_POST_DIR}2.Cutter CH\Cutter CH.def
 3.Sicono_cnc,${UGII_CAM_POST_DIR}3.Sicono\cnc_0.1.tcl,${UGII_CAM_POST_DIR}3.Sicono\cnc_0.1.def
 

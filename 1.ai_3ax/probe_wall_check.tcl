@@ -29,7 +29,7 @@
 #    IF[#192GT0.1]THEN#3000=99(STENKA RAZNICA BOLSHE 0.1)
 #
 #  Optional "Feed override" (TOGGLE): On -> "#170=<feed>. (PODACHA PODVODA)"
-#  after the first line and " F#170" on every G65 P9102/P9103; Off -> as above.
+#  after the first line and " F#170" on every G65 P9102 (single touch P9103 never has F); Off -> as above.
 #
 #  Never X/Y and Z in one block. After the event the next operation gets
 #  full G90 + X/Y/Z, and if no tool change follows (same tool as before the
@@ -385,14 +385,14 @@ proc MOM_probe_wall_check { } {
 
    # point 1 (already at P1 XY, Zsafe)
    MOM_output_literal "G65 P9102 Z${zt}${F}"
-   MOM_output_literal "G65 P9103 A91. ${touch}${F}"
+   MOM_output_literal "G65 P9103 A91. ${touch}"
    MOM_output_literal "#${v1}=#${res} (${L1})"
    MOM_output_literal "G65 P9102 Z${zs}${F}"
 
    # point 2 (XY at Zsafe, then Z down - never XY and Z in one block)
    MOM_output_literal "G65 P9102 X${x2} Y${y2}${F}"
    MOM_output_literal "G65 P9102 Z${zt}${F}"
-   MOM_output_literal "G65 P9103 A91. ${touch}${F}"
+   MOM_output_literal "G65 P9103 A91. ${touch}"
    MOM_output_literal "#${v2}=#${res} (${L2})"
    MOM_output_literal "G65 P9102 Z${zs}${F}"
 
