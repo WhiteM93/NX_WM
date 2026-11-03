@@ -1,0 +1,165 @@
+##############################################################################
+#  probe_omp.cdl  -  User Defined Events for post 1.ai_3ax_omp
+#  Handler: proc MOM_prb_center_axis in probe_omp.tcl
+#  Included from ai_3ax_omp.def:  $UGII_CAM_POST_DIR/1.ai_3ax_omp/probe_omp.cdl
+#  Param types used: p (point, picked in NX), v (vector, NX vector dialog),
+#  d, i, o.  Option values are Russian; Tcl compares them via \u escapes,
+#  ASCII content (G54..G59, G54.1) and trimmed length / space count:
+#    prb_ca_move_cs  "Из операции" 11 chars; G5x ASCII
+#    prb_ca_write_cs "В СК движения" 13 chars 2 spaces, "Не записывать" 13 chars 1 space; G5x ASCII
+#    prb_ca_tol_on   "Нет" 3, "Да" 2
+#  ENCODING: Windows-1251 (NX2506 reads CDL as 1251), CRLF.  Created 2026-11-03 for Max Alen.
+##############################################################################
+
+MACHINE Default
+
+EVENT prb_center_axis
+{
+   POST_EVENT "prb_center_axis"
+   UI_LABEL "Привязка центра по 2 точкам"
+   CATEGORY MILL
+
+   PARAM command_status
+   {
+      TYPE o
+      DEFVAL "Active"
+      OPTIONS "Active","Inactive","User Defined"
+      UI_LABEL "Статус"
+   }
+
+   PARAM prb_ca_point1
+   {
+      TYPE p
+      UI_LABEL "Точка 1"
+   }
+
+   PARAM prb_ca_vec1
+   {
+      TYPE v
+      UI_LABEL "Вектор 1"
+   }
+
+   PARAM prb_ca_point2
+   {
+      TYPE p
+      UI_LABEL "Точка 2"
+   }
+
+   PARAM prb_ca_vec2
+   {
+      TYPE v
+      UI_LABEL "Вектор 2"
+   }
+
+   PARAM prb_ca_standoff
+   {
+      TYPE d
+      DEFVAL "5.0"
+      UI_LABEL "Расстояние подвода"
+   }
+
+   PARAM prb_ca_zsafe
+   {
+      TYPE d
+      DEFVAL "50.0"
+      UI_LABEL "Безопасная Z"
+   }
+
+   PARAM prb_ca_feed
+   {
+      TYPE d
+      DEFVAL "1000.0"
+      TOGGLE Off
+      UI_LABEL "Подача измерения"
+   }
+
+   PARAM prb_ca_move_feed
+   {
+      TYPE d
+      DEFVAL "3000.0"
+      TOGGLE Off
+      UI_LABEL "Подача перемещения"
+   }
+
+   PARAM prb_ca_probe_sw
+   {
+      TYPE o
+      DEFVAL "По станку"
+      OPTIONS "По станку","Да","Нет"
+      UI_LABEL "Включать щуп"
+   }
+
+   PARAM prb_ca_zmode
+   {
+      TYPE o
+      DEFVAL "По точкам"
+      OPTIONS "По точкам","Одна Z"
+      UI_LABEL "Высота касания"
+   }
+
+   PARAM prb_ca_ztouch
+   {
+      TYPE d
+      DEFVAL "0.0"
+      UI_LABEL "Z касания"
+   }
+
+   PARAM prb_ca_move_cs
+   {
+      TYPE o
+      DEFVAL "Из операции"
+      OPTIONS "Из операции","G54","G55","G56","G57","G58","G59","G54.1"
+      UI_LABEL "СК движения щупа"
+   }
+
+   PARAM prb_ca_move_p
+   {
+      TYPE i
+      DEFVAL "1"
+      UI_LABEL "Р для G54.1 (движение)"
+   }
+
+   PARAM prb_ca_write_cs
+   {
+      TYPE o
+      DEFVAL "В СК движения"
+      OPTIONS "В СК движения","G54","G55","G56","G57","G58","G59","G54.1","Не записывать"
+      UI_LABEL "Записать привязку в"
+   }
+
+   PARAM prb_ca_write_p
+   {
+      TYPE i
+      DEFVAL "1"
+      UI_LABEL "Р для G54.1 (запись)"
+   }
+
+   PARAM prb_ca_tol_on
+   {
+      TYPE o
+      DEFVAL "Нет"
+      OPTIONS "Нет","Да"
+      UI_LABEL "Контроль размера"
+   }
+
+   PARAM prb_ca_nominal
+   {
+      TYPE d
+      DEFVAL "0.0"
+      UI_LABEL "Номинал (0 = по модели)"
+   }
+
+   PARAM prb_ca_tol_plus
+   {
+      TYPE d
+      DEFVAL "0.05"
+      UI_LABEL "Допуск +"
+   }
+
+   PARAM prb_ca_tol_minus
+   {
+      TYPE d
+      DEFVAL "0.05"
+      UI_LABEL "Допуск -"
+   }
+}

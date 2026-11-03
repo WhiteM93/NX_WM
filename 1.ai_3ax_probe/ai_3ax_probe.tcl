@@ -4525,14 +4525,14 @@ if [info exists mom_sys_start_of_program_flag] {
 
 # --- UDE probe_wall_check (test copy, 31.10.2026) ---
 set pwc_ude_file [file join [file dirname [info script]] probe_wall_check.tcl]
-if { ![file exists $pwc_ude_file] } { set pwc_ude_file "E:/NX_Tools/ai_3ax_probe_test/probe_wall_check.tcl" }
+if { ![file exists $pwc_ude_file] } { catch {set pwc_ude_file [file join $env(UGII_CAM_POST_DIR) 1.ai_3ax_probe probe_wall_check.tcl]} }
 if { [catch { source $pwc_ude_file } pwc_load_err] } {
    catch { MOM_output_to_listing_device "probe_wall_check.tcl not loaded ($pwc_ude_file): $pwc_load_err" }
 }
 
 # --- UDE probe_set: probe_set_z_top / boss_center / hole_center (31.10.2026) ---
 set pst_ude_file [file join [file dirname [info script]] probe_set.tcl]
-if { ![file exists $pst_ude_file] } { set pst_ude_file "E:/NX_Tools/ai_3ax_probe_test/probe_set.tcl" }
+if { ![file exists $pst_ude_file] } { catch {set pst_ude_file [file join $env(UGII_CAM_POST_DIR) 1.ai_3ax_probe probe_set.tcl]} }
 if { [catch { source $pst_ude_file } pst_load_err] } {
    catch { MOM_output_to_listing_device "probe_set.tcl not loaded ($pst_ude_file): $pst_load_err" }
 }

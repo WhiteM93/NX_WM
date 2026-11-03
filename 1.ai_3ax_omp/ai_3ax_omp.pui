@@ -13,8 +13,8 @@
 
 
 ## POST EVENT HANDLER START
-def_file  ai_3ax_probe.def
-tcl_file  ai_3ax_probe.tcl
+def_file  ai_3ax_omp.def
+tcl_file  ai_3ax_omp.tcl
 ## POST EVENT HANDLER END
 
 
@@ -327,7 +327,7 @@ Saved ai_3ax with NX/Post Builder Version (Final Release).0 on Sunday, June 01 2
 ## LISTING FILE START
 Listfileflag_warn              OFF
 Listfileflag                   OFF
-Listfileflag_alt_unit_post_name ai_3ax__IN.pui
+Listfileflag_alt_unit_post_name ai_3ax_omp__IN.pui
 Listfileflag_group             OFF
 Listfileflag_verbose           OFF
 Listfileflag_tool              0

@@ -18,3 +18,7 @@ Desktop.ini
 # Obsidian cache (notes are kept)
 Obsidian/.obsidian/workspace.json
 Obsidian/.obsidian/workspace-mobile.json
+
+# Backups
+*.bak*
+*.orig

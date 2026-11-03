@@ -1,0 +1,2 @@
+MACHINE FANUC
+INCLUDE {$UGII_CAM_POST_DIR/1.ai_3ax_omp/probe_omp.cdl $UGII_CAM_POST_DIR/1.ai_3ax_probe/probe_wall_check.cdl $UGII_CAM_POST_DIR/1.ai_3ax_probe/probe_set.cdl $UGII_CAM_USER_DEF_EVENT_DIR/ude.cdl}

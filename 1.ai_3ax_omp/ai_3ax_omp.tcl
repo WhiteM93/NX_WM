@@ -1,6 +1,6 @@
 ########################## TCL Event Handlers ##########################
 #
-#  ai_3ax.tcl - 3-axis mill
+#  ai_3ax_omp.tcl - 3-axis mill + OMP probing (probe_omp.tcl)
 #  Author: wm93
 #
 #  3-axis milling machine.
@@ -140,7 +140,7 @@ proc PB_CMD___log_revisions { } {
 
 
   set mom_sys_use_default_unit_fragment         "ON"
-  set mom_sys_alt_unit_post_name                "ai_3ax__IN.pui"
+  set mom_sys_alt_unit_post_name                "ai_3ax_omp__IN.pui"
 
 
 ########## SYSTEM VARIABLE DECLARATIONS ##############
@@ -260,7 +260,7 @@ proc PB_CMD___log_revisions { } {
   set mom_sys_advanced_turbo_output             "0"
   set mom_sys_tool_number_max                   "10"
   set mom_sys_tool_number_min                   "1"
-  set mom_sys_post_description                  "ai_3ax 3-axis mill (wm93)"
+  set mom_sys_post_description                  "ai_3ax_omp 3-axis mill + OMP probing (wm93)"
   set mom_sys_word_separator                    " "
   set mom_sys_end_of_block                      ""
   set mom_sys_ugpadvkins_used                   "0"
@@ -1138,7 +1138,7 @@ proc MOM_end_of_path { } {
       PB_CMD_kin_end_of_path
    }
 
-   # Если резьба выводилась как станочный цикл из linear_move или при пустой траектории — отменить цикл G80
+   # ???? ?????? ?????????? ??? ????????? ???? ?? linear_move ??? ??? ?????? ?????????? ? ???????? ???? G80
    if { [info exists mom_sys_tap_linear_converted] && $mom_sys_tap_linear_converted } {
       MOM_do_template cycle_off
       unset mom_sys_tap_linear_converted
@@ -1291,8 +1291,8 @@ proc MOM_linear_move { } {
 
    ABORT_EVENT_CHECK
 
-   # Если операция — нарезание резьбы (TAP), но NX отдаёт линейные ходы вместо цикла,
-   # выводим станочный цикл G84 по текущей позиции.
+   # ???? ???????? ? ????????? ?????? (TAP), ?? NX ?????? ???????? ???? ?????? ?????,
+   # ??????? ????????? ???? G84 ?? ??????? ???????.
    if { [info exists cycle_name] && [string compare $cycle_name "TAP"] == 0 } {
       if { ![info exists mom_cycle_spindle_axis] } { set mom_cycle_spindle_axis 2 }
       set mom_cycle_feed_to_pos(0) $mom_pos(0)
@@ -1559,7 +1559,7 @@ proc MOM_start_of_path { } {
    global mom_path_name
    MOM_output_literal "(OPERATION NAME: $mom_path_name)"
 
-   # Пустая траектория резьбы: как в Fanuc (ConfigPos) — выводим цикл через шаблон с заполненными переменными
+   # ?????? ?????????? ??????: ??? ? Fanuc (ConfigPos) ? ??????? ???? ????? ?????? ? ???????????? ???????????
    global mom_empty_path mom_template_subtype mom_msys_origin mom_top_offset_value
    global mom_cycle_feed_to_pos mom_cycle_rapid_to_pos mom_cycle_spindle_axis
    global cycle_name mom_sys_tap_empty_path_output
@@ -1622,7 +1622,7 @@ proc PB_CMD_prepare_tap_cycle_step { } {
 #=============================================================
    global mom_cycle_step1
 
-   # Не выводим Q, если шаг резьбы/глубина шага равны 0.
+   # ?? ??????? Q, ???? ??? ??????/??????? ???? ????? 0.
    if { [info exists mom_cycle_step1] } {
       set q_val [string trim $mom_cycle_step1]
       if { $q_val eq "" } {
@@ -4523,16 +4523,5 @@ if [info exists mom_sys_start_of_program_flag] {
 }
 
 
-# --- UDE probe_wall_check (test copy, 31.10.2026) ---
-set pwc_ude_file [file join [file dirname [info script]] probe_wall_check.tcl]
-if { ![file exists $pwc_ude_file] } { set pwc_ude_file "E:/NX_Tools/ai_3ax_probe_test/probe_wall_check.tcl" }
-if { [catch { source $pwc_ude_file } pwc_load_err] } {
-   catch { MOM_output_to_listing_device "probe_wall_check.tcl not loaded ($pwc_ude_file): $pwc_load_err" }
-}
-
-# --- UDE probe_set: probe_set_z_top / boss_center / hole_center (31.10.2026) ---
-set pst_ude_file [file join [file dirname [info script]] probe_set.tcl]
-if { ![file exists $pst_ude_file] } { set pst_ude_file "E:/NX_Tools/ai_3ax_probe_test/probe_set.tcl" }
-if { [catch { source $pst_ude_file } pst_load_err] } {
-   catch { MOM_output_to_listing_device "probe_set.tcl not loaded ($pst_ude_file): $pst_load_err" }
-}
+# --- On Machine Probing -> Max macros O9101/O9102/O9103 (2026-11-02) ---
+if { [catch { set prb_f [file join [file dirname [info script]] probe_omp.tcl]; if {![file exists $prb_f]} {catch {set prb_f [file join $env(UGII_CAM_POST_DIR) 1.ai_3ax_omp probe_omp.tcl]}}; source $prb_f } prb_load_err] } { catch { MOM_output_to_listing_device "probe_omp.tcl not loaded: $prb_load_err" } }

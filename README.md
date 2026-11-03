@@ -1,47 +1,34 @@
-# NX_WM — постпроцессоры Siemens NX CAM
+# NX_WM - постпроцессоры Siemens NX CAM
 
-Коллекция постпроцессоров для генерации УП под разные станки и контроллеры.
+Подробная инструкция на русском: [README_RU.md](README_RU.md).
 
 ## Посты
 
 | Папка | Описание |
 |-------|----------|
 | `1.ai_3ax` | 3-осевой пост |
+| `1.ai_3ax_omp` | 3-осевой пост с щупом OMP (UDE `prb_center_axis`) |
 | `1.ai_3ax_probe` | 3-осевой пост с поддержкой измерений щупом (Hexagon) |
 | `1.ai_4ax` | 4-осевой пост |
 | `2.Cutter CH` | Cutter CH |
 | `3.Sicono` | Sicono CNC |
 
-Список постов для установки в NX — в файле `template_post.dat`.
+Список постов для установки в NX - в файле `template_post.dat`.
 
-## Щуп и UDE (Hexagon)
+## UDE
 
-Пост `1.ai_3ax_probe` включает UDE-события:
+Все пользовательские события подключаются через общий `ude_wm.cdl` (строка `USER_DEFINED_EVENTS` в `configuration/cam_general.dat`):
 
-1. **Probe wall check**
-2. **Probe set Z top**
-3. **Probe set boss center**
-4. **Probe set hole center**
+- `1.ai_3ax_omp`: **prb_center_axis**
+- `1.ai_3ax_probe`: **Probe wall check**, **Probe set Z top**, **Probe set boss center**, **Probe set hole center**
 
-Для событий измерения доступен переключатель **Feed override**.
+## Установка
 
-## Установка Probe_Installer на другой ПК
+Закрыть NX, запустить `install.bat -DryRun`, затем `install.bat`. Откат: `install.bat -Uninstall`. См. [README_RU.md](README_RU.md).
 
-В репозитории есть папка `Probe_Installer/` с установщиком поста `1.ai_3ax_probe` и UDE-файлов.
+## Файлы
 
-1. Запустить `Probe_Installer/install.bat`.
-2. Рекомендуется сначала выполнить установку в режиме `-DryRun`.
-3. Для отката использовать режим `-Uninstall`.
-
-Установщик изменяет строку `USER_DEFINED_EVENTS` в `cam_general.dat` и записи в `template_post.dat`, перед изменениями делает резервные копии в `E:\\NX_Tools\\Backup`.
-
-## Структура
-
-- `*.tcl` — основной код постпроцессора
-- `*.def` — определение поста
-- `*.pui` — интерфейс Post Builder
-- `ugpost_base.tcl` — базовые функции поста
-
-## Журнал изменений
-
-См. `POST_CHANGES_LOG_2026-03-23.txt`.
+- `*.tcl` - основной код постпроцессора
+- `*.def` - определение поста
+- `*.pui` - интерфейс Post Builder
+- `ugpost_base.tcl` - базовые функции Siemens
