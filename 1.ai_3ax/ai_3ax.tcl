@@ -966,7 +966,43 @@ proc MOM_cutcom_on { } {
 #=============================================================
 proc MOM_cycle_off { } {
 #=============================================================
+   AI3_cycle_off
+}
+
+
+#=============================================================
+# G80 only once per cycle: ::ai3_g80_done is set after G80 and cleared
+# by any cycle event (all of them write cycle_init_flag).
+#=============================================================
+set ai3_g80_done 0
+trace add variable ::cycle_init_flag write { apply {args { set ::ai3_g80_done 0 }} }
+proc AI3_cycle_off { } {
+   if { $::ai3_g80_done } { return }
    MOM_do_template cycle_off
+   set ::ai3_g80_done 1
+}
+
+
+#=============================================================
+# Operation start without tool change (MOM_first_move): output
+# G43 Z<first move Z> H<adjust register> (+M08 unless coolant OFF)
+# after the XY rapid, as MOM_initial_move does after a tool change.
+# Skipped while probe_omp has an armed probe (it outputs its own
+# G90 G00 G5x / G43 H before probing).
+#=============================================================
+proc AI3_first_move_g43 { } {
+   global mom_tool_adjust_register mom_tool_number mom_coolant_status
+   if { [info exists ::prb_need_g43] && $::prb_need_g43 } { return }
+   if { ![info exists mom_tool_adjust_register] || ![string is double -strict $mom_tool_adjust_register] || $mom_tool_adjust_register <= 0 } {
+      if { [info exists mom_tool_number] } { set mom_tool_adjust_register $mom_tool_number }
+   }
+   MOM_force Once G_adjust Z H
+   if { [info exists mom_coolant_status] && $mom_coolant_status == "OFF" } {
+      MOM_suppress Once M_coolant
+   } else {
+      MOM_force Once M_coolant
+   }
+   MOM_do_template rapid_spindle_z
 }
 
 
@@ -1140,11 +1176,11 @@ proc MOM_end_of_path { } {
 
    # If the thread was output as a machine cycle from linear_move or on an empty path - cancel the cycle with G80
    if { [info exists mom_sys_tap_linear_converted] && $mom_sys_tap_linear_converted } {
-      MOM_do_template cycle_off
+      AI3_cycle_off
       unset mom_sys_tap_linear_converted
    }
    if { [info exists mom_sys_tap_empty_path_output] && $mom_sys_tap_empty_path_output } {
-      MOM_do_template cycle_off
+      AI3_cycle_off
       unset mom_sys_tap_empty_path_output
    }
    if { [info exists cycle_name] && [string compare $cycle_name "TAP"] == 0 } {
@@ -1177,6 +1213,7 @@ proc MOM_first_move { } {
    MOM_force Once G_motion G_mode
    MOM_do_template fixture_absolute
    MOM_do_template end_of_program_1_1
+   AI3_first_move_g43
    catch { MOM_$mom_motion_event }
 
   # Configure turbo output settings
