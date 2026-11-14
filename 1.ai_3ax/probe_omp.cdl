@@ -8,6 +8,7 @@
 #    prb_ca_move_cs  "Из операции" 11 chars; G5x ASCII
 #    prb_ca_write_cs "В СК движения" 13 chars 2 spaces, "Не записывать" 13 chars 1 space; G5x ASCII
 #    prb_ca_tol_on   "Нет" 3, "Да" 2
+#    prb_ca_m60      "Да" 2, "Нет" 3 (M60 before P9101 A1., M61 after A0.)
 #  ENCODING: Windows-1251 (NX2506 reads CDL as 1251), CRLF.  Created 2026-11-03 for Max Alen.
 ##############################################################################
 
@@ -87,6 +88,14 @@ EVENT prb_center_axis
       DEFVAL "По станку"
       OPTIONS "По станку","Да","Нет"
       UI_LABEL "Включать щуп"
+   }
+
+   PARAM prb_ca_m60
+   {
+      TYPE o
+      DEFVAL "Да"
+      OPTIONS "Да","Нет"
+      UI_LABEL "M60/M61 (без шпинделя)"
    }
 
    PARAM prb_ca_zmode

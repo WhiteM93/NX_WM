@@ -8,7 +8,9 @@
 #           G65 P9103 X/Y/Z (no F) or D F#170  measuring touch
 #  Results: X->#101 Y->#102 Z->#103 D->#100
 #  Own vars: #152-#199 (#190-192 reserved wall check), #170 feed, #171 W, #172 move feed (UDE prb_center_axis).
-#  Rules: no GOTO, no M60, never XY and Z in one block, G90 after G91,
+#  M60 before G65 P9101 A1. / M61 after A0. (G01 without spindle inside O9101,
+#  Fanuc alarm 2301), switch ::prb_m60_enable / UDE field prb_ca_m60.
+#  Rules: no GOTO, M60/M61 only around probe on/off, never XY and Z in one block, G90 after G91,
 #         #3006 text <= 26 chars, offsets via G91 G10 L2/L20 Pn ... G90.
 #
 #  NX events handled (NX2506 mom_vars_csv "Probing Event"):
@@ -26,12 +28,28 @@
 # DEBUG dump (DBG comments): 1 = on, 0 = off
 if {![info exists ::prb_omp_debug]}    {set ::prb_omp_debug 0}
 if {![info exists ::prb_probe_switch]} {set ::prb_probe_switch 1}
+# M60 before probe on, M61 after probe off (alarm 2301: G01 with spindle
+# stopped inside O9101). 1 = output, 0 = never. UDE prb_center_axis overrides.
+if {![info exists ::prb_m60_enable]}   {set ::prb_m60_enable 1}
 # per-operation override of prb_probe_switch from UDE ("" = none, 0/1);
 # reset at start_of_path and after probe-off at end_of_path
 set ::prb_sw_override "" ; set ::prb_wcs_override ""
 proc PRB_sw { } {
    if {$::prb_sw_override ne ""} {return $::prb_sw_override}
    return $::prb_probe_switch
+}
+# per-operation override of prb_m60_enable from UDE ("" = none, 0/1);
+# ::prb_m60_state 1 = M60 output, M61 still pending
+set ::prb_m60_override "" ; set ::prb_m60_state 0
+proc PRB_m60_en { } {
+   if {$::prb_m60_override ne ""} {return $::prb_m60_override}
+   return $::prb_m60_enable
+}
+proc PRB_m60 { } {
+   if {[PRB_m60_en] && !$::prb_m60_state} { PRB_out "M60" ; set ::prb_m60_state 1 }
+}
+proc PRB_m61 { } {
+   if {$::prb_m60_state} { PRB_out "M61" ; set ::prb_m60_state 0 }
 }
 if {![info exists ::prb_tool]}         {set ::prb_tool 20}
 if {![info exists ::prb_h]}            {set ::prb_h 20}
@@ -138,6 +156,7 @@ proc PRB_on { } {
       PRB_out "#$::prb_move_fvar=[PRB_fmt $::prb_move_feed] (PODACHA PEREMESHCHENIYA)"
    }
    PRB_out "#171=[PRB_fmt $W] (NOL W)"
+   PRB_m60
    if {[PRB_sw]} {
       PRB_out "G65 P9101 A1."
    } else {
@@ -153,6 +172,7 @@ proc PRB_off { } {
    } else {
       PRB_out "(SHCHUP VKLYUCHEN POSTOYANNO)"
    }
+   PRB_m61
    set ::prb_on_state 0
 }
 
@@ -622,14 +642,15 @@ if {[llength [info commands MOM_tool_change]] && ![llength [info commands PRB_or
 }
 if {[llength [info commands MOM_start_of_path]] && ![llength [info commands PRB_orig_MOM_start_of_path]]} {
    rename MOM_start_of_path PRB_orig_MOM_start_of_path
-   proc MOM_start_of_path { } { set ::prb_g43_done 0 ; set ::prb_sw_override "" ; set ::prb_wcs_override "" ; PRB_tag "START_OF_PATH [PRB_opname] PROBE_TOOL=[PRB_is_probe_tool]" ; PRB_orig_MOM_start_of_path ; if {[PRB_is_probe_tool]} {PRB_arm} }
+   proc MOM_start_of_path { } { set ::prb_g43_done 0 ; set ::prb_sw_override "" ; set ::prb_wcs_override "" ; set ::prb_m60_override "" ; PRB_tag "START_OF_PATH [PRB_opname] PROBE_TOOL=[PRB_is_probe_tool]" ; PRB_orig_MOM_start_of_path ; if {[PRB_is_probe_tool]} {PRB_arm} }
 }
 if {[llength [info commands MOM_end_of_path]] && ![llength [info commands PRB_orig_MOM_end_of_path]]} {
    rename MOM_end_of_path PRB_orig_MOM_end_of_path
    proc MOM_end_of_path { } {
       PRB_tag "END_OF_PATH [PRB_opname]"
       if {$::prb_on_state} {PRB_off}
-      set ::prb_sw_override "" ; set ::prb_wcs_override ""
+      PRB_m61
+      set ::prb_sw_override "" ; set ::prb_wcs_override "" ; set ::prb_m60_override ""
       set ::prb_pending_on 0 ; set ::prb_need_g43 0 ; PRB_walls_reset ; set ::prb_clear_z ""
       PRB_force_mode
       PRB_orig_MOM_end_of_path
@@ -792,6 +813,7 @@ proc MOM_prb_center_axis { } {
    #   prb_ca_tol_on  : "Net" = 3, "Da" = 2
    #   prb_ca_zmode   : "Po tochkam" = 9, "Odna Z" = 6
    #   prb_ca_probe_sw: "Po stanku" = 9, "Da" = 2, "Net" = 3
+   #   prb_ca_m60     : "Da" = 2, "Net" = 3
    set fo 0
    if {[info exists ::mom_fixture_offset_value] && [string is double -strict $::mom_fixture_offset_value]} {
       set fo [expr {int($::mom_fixture_offset_value)}]
@@ -895,6 +917,17 @@ proc MOM_prb_center_axis { } {
       set ::prb_sw_override ""
    }
    if {$::prb_omp_debug} {PRB_out "(DBG UDE PROBE_SW LEN=$swl OVR=$::prb_sw_override EFF=[PRB_sw])"}
+   # M60/M61 (no spindle): "Da" 2 letters, "Net" 3 -> override; missing = ::prb_m60_enable
+   set m6 ""
+   if {[info exists ::mom_prb_ca_m60]} {set m6 [string trim $::mom_prb_ca_m60]}
+   if {[PRB_opt_is $m6 Yes "\u0414\u0430"] || [string length $m6] == 2} {
+      set ::prb_m60_override 1
+   } elseif {[PRB_opt_is $m6 No "\u041d\u0435\u0442"] || [string length $m6] == 3} {
+      set ::prb_m60_override 0
+   } else {
+      set ::prb_m60_override ""
+   }
+   if {$::prb_omp_debug} {PRB_out "(DBG UDE M60 LEN=[string length $m6] OVR=$::prb_m60_override EFF=[PRB_m60_en])"}
    # ---- motion in the chosen move CS: PRB_wcs (PRB_first_pos/PRB_wcs_text,
    # PRB_on #171) returns ::prb_wcs_override until end of this operation
    set ::prb_wcs_override $mw

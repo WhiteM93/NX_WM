@@ -4,6 +4,7 @@
 #  Handler: proc MOM_probe_wall_check in probe_wall_check.tcl
 #  Syntax follows NX ude.cdl / Fanuc_custom.cdl / Robotics.cdl (TYPE p).
 #  Created 2026-10-31 for Max Alen (WhiteM93).
+#  M60/M61 field: Russian text, ENCODING Windows-1251 (as probe_omp.cdl).
 ##############################################################################
 
 MACHINE Default
@@ -35,6 +36,14 @@ EVENT probe_wall_check
       DEFVAL "1000.0"
       TOGGLE Off
       UI_LABEL "Feed override"
+   }
+
+   PARAM pwc_m60
+   {
+      TYPE o
+      DEFVAL "Да"
+      OPTIONS "Да","Нет"
+      UI_LABEL "M60/M61 (без шпинделя)"
    }
 
    PARAM pwc_wcs

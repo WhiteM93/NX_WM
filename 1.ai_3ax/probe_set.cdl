@@ -3,6 +3,7 @@
 #  NX CAM User Defined Events: probe set Z top / boss center / hole center
 #  (Fanuc 0i-MF Plus + Hexagon). Handlers: probe_set.tcl
 #  Created 2026-10-31 for Max Alen.
+#  M60/M61 field: Russian text, ENCODING Windows-1251 (as probe_omp.cdl).
 ##############################################################################
 
 MACHINE Default
@@ -54,6 +55,14 @@ EVENT probe_set_z_top
       DEFVAL "1000.0"
       TOGGLE Off
       UI_LABEL "Feed override"
+   }
+
+   PARAM pst_m60
+   {
+      TYPE o
+      DEFVAL "Да"
+      OPTIONS "Да","Нет"
+      UI_LABEL "M60/M61 (без шпинделя)"
    }
 
    PARAM pst_w
@@ -127,6 +136,14 @@ EVENT probe_set_boss_center
       UI_LABEL "Feed override"
    }
 
+   PARAM pst_m60
+   {
+      TYPE o
+      DEFVAL "Да"
+      OPTIONS "Да","Нет"
+      UI_LABEL "M60/M61 (без шпинделя)"
+   }
+
    PARAM pst_w
    {
       TYPE i
@@ -196,6 +213,14 @@ EVENT probe_set_hole_center
       DEFVAL "1000.0"
       TOGGLE Off
       UI_LABEL "Feed override"
+   }
+
+   PARAM pst_m60
+   {
+      TYPE o
+      DEFVAL "Да"
+      OPTIONS "Да","Нет"
+      UI_LABEL "M60/M61 (без шпинделя)"
    }
 
    PARAM pst_w

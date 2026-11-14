@@ -9,6 +9,7 @@
 #    T20 M06
 #    G00 G90 G54 X-97. Y80.
 #    G43 H20 Z50.
+#    M60
 #    G65 P9101 A1.
 #    #190=#0
 #    #191=#0
@@ -23,6 +24,7 @@
 #    #191=#102 (Y2)
 #    G65 P9102 Z50.
 #    G65 P9101 A0.
+#    M61
 #    #192=ABS[#191-#190]
 #    G00 G90 G53 Z0.
 #    #3006=-1 (Y1=&#190& Y2=&#191& RAZN=&#192&)
@@ -36,7 +38,8 @@
 #  probe) the tool change is forced so the probe never stays in the spindle.
 #
 #  Rules: touch result X->#101, Y->#102 (Z->#103 not used here);
-#         free vars #152..#199 only; no GOTO; no M60.
+#         free vars #152..#199 only; no GOTO; M60/M61 only around
+#         G65 P9101 A1./A0. (alarm 2301, option pwc_m60 / ::prb_m60_enable).
 #
 #  Hook: source this file from the post's main .tcl (or a PB custom command
 #        executed in Start of Program), see README_RU.txt.
@@ -65,6 +68,9 @@ if { ![info exists ::pwc_amp_mode] }   { set ::pwc_amp_mode "LITERAL" }
 # 1 = force a tool change on the next motion if no tool change came after
 #     the probe event (probe must never stay in the spindle)
 if { ![info exists ::pwc_force_tool_back] } { set ::pwc_force_tool_back 1 }
+# 1 = "M60" before G65 P9101 A1. and "M61" after A0. (Fanuc alarm 2301:
+#     G01 with spindle stopped inside O9101). UDE field *_m60 overrides.
+if { ![info exists ::prb_m60_enable] } { set ::prb_m60_enable 1 }
 
 
 #-----------------------------------------------------------------------------
@@ -210,6 +216,27 @@ proc PWC_opt_feed { pname errproc } {
    if { ![string is double -strict $f] } { {*}$errproc "feed is not a number: '$f'" }
    if { $f <= 0.0 } { {*}$errproc "feed must be > 0 (got $f)" }
    return $f
+}
+
+#-----------------------------------------------------------------------------
+# M60/M61 option (UDE TYPE o "Da"/"Net"; NX may re-decode, so the trimmed
+# length 2/3 is checked too). Missing / unknown -> ::prb_m60_enable.
+#-----------------------------------------------------------------------------
+proc PWC_m60 { pname } {
+   upvar #0 mom_$pname v
+   if { [info exists v] } {
+      set s [string trim $v]
+      foreach {r ascii ru} [list 1 Yes "\u0414\u0430" 0 No "\u041d\u0435\u0442"] {
+         if { [string equal -nocase $s $ascii] } { return $r }
+         foreach c [list $ru [encoding convertto cp1251 $ru] [encoding convertto utf-8 $ru]] {
+            if { $s eq $c } { return $r }
+         }
+      }
+      if { [string length $s] == 2 } { return 1 }
+      if { [string length $s] == 3 } { return 0 }
+   }
+   if { $::prb_m60_enable } { return 1 }
+   return 0
 }
 
 proc PWC_forget { pattern } {
@@ -378,6 +405,8 @@ proc MOM_probe_wall_check { } {
    MOM_output_literal "G43 H${tool} Z${zs}"
    set ::pwc_probe_in_spindle $tool
 
+   set m60 [PWC_m60 pwc_m60]
+   if { $m60 } { MOM_output_literal "M60" }
    MOM_output_literal "G65 P9101 A1."
    MOM_output_literal "#${v1}=#0"
    MOM_output_literal "#${v2}=#0"
@@ -397,6 +426,7 @@ proc MOM_probe_wall_check { } {
    MOM_output_literal "G65 P9102 Z${zs}${F}"
 
    MOM_output_literal "G65 P9101 A0."
+   if { $m60 } { MOM_output_literal "M61" }
    MOM_output_literal "#${vd}=ABS\[#${v2}-#${v1}\]"
    MOM_output_literal "G00 G90 G53 Z0."
    PWC_out_amp "#3006=-1 (${L1}=&#${v1}& ${L2}=&#${v2}& RAZN=&#${vd}&)"

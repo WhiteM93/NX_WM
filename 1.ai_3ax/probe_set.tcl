@@ -16,11 +16,13 @@
 #    T20 M06
 #    G00 G90 G54 X0. Y0.
 #    G43 H20 Z50.
+#    M60
 #    G65 P9101 A1.
 #    G65 P9102 Z10. F#170
 #    G65 P9103 D-50. Z-10. W#171 F#170
 #    G65 P9102 Z50. F#170
 #    G65 P9101 A0.
+#    M61
 #    G00 G90 G53 Z0.
 #    #3006=-1 (BOBYSHKA X=&#101& Y=&#102& D=&#100&)
 #
@@ -28,6 +30,8 @@
 #  F#170 (the macros use their default feed #111). On: as in the example.
 #  W (zero number): 1..6 = G54..G59, -n = G54.1 Pn (n 1..300); #171=W.
 #  Variables used: #170 (feed), #171 (W) only. Never X/Y and Z in one block.
+#  M60/M61 around P9101 A1./A0. (alarm 2301): UDE field pst_m60, default
+#  ::prb_m60_enable (see probe_wall_check.tcl).
 #  After each event the next operation gets full G90 + X/Y/Z (+G43 H), and
 #  the tool change is forced if NX does not generate one.
 #
@@ -80,6 +84,7 @@ proc PST_common { ev arrname } {
    set a(feed) [PWC_opt_feed pst_feed [list PST_error $ev]]
    set a(w)    [PST_int $ev pst_w    1]
    set a(tool) [PST_int $ev pst_tool 20]
+   set a(m60)  [PWC_m60 pst_m60]
 
    if { $a(tool) < 1 || $a(tool) > 999 } { PST_error $ev "tool number T$a(tool) out of range 1-999" }
    if { $a(w) >= 1 && $a(w) <= 6 } {
@@ -106,6 +111,7 @@ proc PST_head { arrname } {
    MOM_output_literal "G00 G90 $a(wcs) X[PWC_fmt $a(x)] Y[PWC_fmt $a(y)]"
    MOM_output_literal "G43 H$a(tool) Z[PWC_fmt $a(zs)]"
    set ::pwc_probe_in_spindle $a(tool)
+   if { $a(m60) } { MOM_output_literal "M60" }
    MOM_output_literal "G65 P9101 A1."
    MOM_output_literal "G65 P9102 Z[PWC_fmt $a(za)]$a(F)"
 }
@@ -114,6 +120,7 @@ proc PST_tail { arrname msg } {
    upvar 1 $arrname a
    MOM_output_literal "G65 P9102 Z[PWC_fmt $a(zs)]$a(F)"
    MOM_output_literal "G65 P9101 A0."
+   if { $a(m60) } { MOM_output_literal "M61" }
    MOM_output_literal "G00 G90 G53 Z0."
    PWC_out_amp "#3006=-1 ($msg)"
    # post still holds G91 / old X Y Z / old H: force full output next block
