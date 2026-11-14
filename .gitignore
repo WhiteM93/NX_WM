@@ -1,6 +1,3 @@
-# Archive (local backups)
-архив/
-
 # NX / CAM
 *.prt
 *.out
@@ -14,10 +11,6 @@
 Thumbs.db
 Desktop.ini
 .DS_Store
-
-# Obsidian cache (notes are kept)
-Obsidian/.obsidian/workspace.json
-Obsidian/.obsidian/workspace-mobile.json
 
 # Backups
 *.bak*
