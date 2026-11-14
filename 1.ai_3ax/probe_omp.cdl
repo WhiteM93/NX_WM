@@ -1,6 +1,6 @@
 ##############################################################################
 #  probe_omp.cdl  -  User Defined Events for post 1.ai_3ax
-#  Handler: proc MOM_prb_center_axis in probe_omp.tcl
+#  Handlers: proc MOM_prb_center_axis, MOM_prb_z_point in probe_omp.tcl
 #  Included from ai_3ax.def:  $UGII_CAM_POST_DIR/1.ai_3ax/probe_omp.cdl
 #  Param types used: p (point, picked in NX), v (vector, NX vector dialog),
 #  d, i, o.  Option values are Russian; Tcl compares them via \u escapes,
@@ -9,6 +9,8 @@
 #    prb_ca_write_cs "В СК движения" 13 chars 2 spaces, "Не записывать" 13 chars 1 space; G5x ASCII
 #    prb_ca_tol_on   "Нет" 3, "Да" 2
 #    prb_ca_m60      "Да" 2, "Нет" 3 (M60 before P9101 A1., M61 after A0.)
+#    prb_zp_*        same as prb_ca_*; prb_zp_zmode "По точке" 8, "Задать" 6
+#  EVENT prb_z_point ("Привязка Z") added 2026-11-14.
 #  ENCODING: Windows-1251 (NX2506 reads CDL as 1251), CRLF.  Created 2026-11-03 for Max Alen.
 ##############################################################################
 
@@ -169,6 +171,146 @@ EVENT prb_center_axis
    {
       TYPE d
       DEFVAL "0.05"
+      UI_LABEL "Допуск -"
+   }
+}
+EVENT prb_z_point
+{
+   POST_EVENT "prb_z_point"
+   UI_LABEL "Привязка Z"
+   CATEGORY MILL
+
+   PARAM command_status
+   {
+      TYPE o
+      DEFVAL "Active"
+      OPTIONS "Active","Inactive","User Defined"
+      UI_LABEL "Статус"
+   }
+
+   PARAM prb_zp_point
+   {
+      TYPE p
+      UI_LABEL "Точка касания (верх)"
+   }
+
+   PARAM prb_zp_standoff
+   {
+      TYPE d
+      DEFVAL "5.0"
+      UI_LABEL "Расстояние подвода"
+   }
+
+   PARAM prb_zp_zsafe
+   {
+      TYPE d
+      DEFVAL "50.0"
+      UI_LABEL "Безопасная Z"
+   }
+
+   PARAM prb_zp_feed
+   {
+      TYPE d
+      DEFVAL "1000.0"
+      TOGGLE Off
+      UI_LABEL "Подача измерения"
+   }
+
+   PARAM prb_zp_move_feed
+   {
+      TYPE d
+      DEFVAL "3000.0"
+      TOGGLE Off
+      UI_LABEL "Подача перемещения"
+   }
+
+   PARAM prb_zp_probe_sw
+   {
+      TYPE o
+      DEFVAL "По станку"
+      OPTIONS "По станку","Да","Нет"
+      UI_LABEL "Включать щуп"
+   }
+
+   PARAM prb_zp_m60
+   {
+      TYPE o
+      DEFVAL "Да"
+      OPTIONS "Да","Нет"
+      UI_LABEL "M60/M61 (без шпинделя)"
+   }
+
+   PARAM prb_zp_zmode
+   {
+      TYPE o
+      DEFVAL "По точке"
+      OPTIONS "По точке","Задать"
+      UI_LABEL "Номинал Z"
+   }
+
+   PARAM prb_zp_znom
+   {
+      TYPE d
+      DEFVAL "0.0"
+      UI_LABEL "Z номинал (Задать)"
+   }
+
+   PARAM prb_zp_offset
+   {
+      TYPE d
+      DEFVAL "0.0"
+      UI_LABEL "Доп. смещение Z"
+   }
+
+   PARAM prb_zp_move_cs
+   {
+      TYPE o
+      DEFVAL "Из операции"
+      OPTIONS "Из операции","G54","G55","G56","G57","G58","G59","G54.1"
+      UI_LABEL "СК движения щупа"
+   }
+
+   PARAM prb_zp_move_p
+   {
+      TYPE i
+      DEFVAL "1"
+      UI_LABEL "Р для G54.1 (движение)"
+   }
+
+   PARAM prb_zp_write_cs
+   {
+      TYPE o
+      DEFVAL "В СК движения"
+      OPTIONS "В СК движения","G54","G55","G56","G57","G58","G59","G54.1","Не записывать"
+      UI_LABEL "Записать привязку в"
+   }
+
+   PARAM prb_zp_write_p
+   {
+      TYPE i
+      DEFVAL "1"
+      UI_LABEL "Р для G54.1 (запись)"
+   }
+
+   PARAM prb_zp_tol_on
+   {
+      TYPE o
+      DEFVAL "Нет"
+      OPTIONS "Нет","Да"
+      UI_LABEL "Контроль высоты"
+   }
+
+   PARAM prb_zp_tol_plus
+   {
+      TYPE d
+      DEFVAL "0.1"
+      UI_LABEL "Допуск +"
+   }
+
+   PARAM prb_zp_tol_minus
+   {
+      TYPE d
+      DEFVAL "0.1"
       UI_LABEL "Допуск -"
    }
 }

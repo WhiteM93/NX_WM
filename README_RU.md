@@ -3,7 +3,7 @@
 ## Постпроцессоры (папки = имена в списке NX, не переименовывать)
 | Папка | Назначение |
 |---|---|
-| `1.ai_3ax` | 3-осевой фрезерный (FANUC) + щуп: OMP (UDE `prb_center_axis`, `probe_omp.tcl/.cdl`), `probe_wall_check`, `probe_set_*` (`probe_*.tcl/.cdl`) |
+| `1.ai_3ax` | 3-осевой фрезерный (FANUC) + щуп: OMP (UDE `prb_center_axis` «Привязка центра по 2 точкам», `prb_z_point` «Привязка Z», `probe_omp.tcl/.cdl`), `probe_wall_check`, `probe_set_*` (`probe_*.tcl/.cdl`) |
 | `1.ai_4ax` | 4-осевой (в `template_post.dat` не добавляется) |
 | `2.Cutter CH` | Cutter CH |
 | `3.Sicono` | Sicono |
@@ -36,7 +36,7 @@ CDL/TCL событий лежат в папке поста `1.ai_3ax` (пост�
    `icacls "C:\Program Files\Siemens\NX2506\MACH\resource" /grant "${env:USERNAME}:(OI)(CI)M" /T`
    В PowerShell пишите именно `${env:USERNAME}`; `%USERNAME%` работает только в cmd.
 5. Запустите установку снова: `install.bat` (или `& ".\install.ps1"`) и подтвердите `д`.
-6. Проверка в NX: в списке UDE должны быть «Привязка центра по 2 точкам» и старые события щупа.
+6. Проверка в NX: в списке UDE должны быть «Привязка центра по 2 точкам», «Привязка Z» и старые события щупа.
 
 ## Ручная установка
 1. Скопировать папки постпроцессоров и `ude_wm.cdl` в `<NX>\MACH\resource\postprocessor\`.

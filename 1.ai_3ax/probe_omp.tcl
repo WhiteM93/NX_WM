@@ -7,6 +7,7 @@
 #           G65 P9102 X/Y/Z F#170          protected positioning (F#172 in UDE prb_center_axis)
 #           G65 P9103 X/Y/Z (no F) or D F#170  measuring touch
 #  Results: X->#101 Y->#102 Z->#103 D->#100
+#  UDEs (probe_omp.cdl): prb_center_axis (center by 2 points), prb_z_point (Z top touch, 2026-11-14)
 #  Own vars: #152-#199 (#190-192 reserved wall check), #170 feed, #171 W, #172 move feed (UDE prb_center_axis).
 #  M60 before G65 P9101 A1. / M61 after A0. (G01 without spindle inside O9101,
 #  Fanuc alarm 2301), switch ::prb_m60_enable / UDE field prb_ca_m60.
@@ -1004,6 +1005,170 @@ proc MOM_prb_center_axis { } {
       PRB_force_mode
    } else {
       PRB_shift [lrange $tw 0 1] [list [list $A 186]]
+   }
+   set ::prb_move_fvar 170
+}
+
+#---------------- UDE prb_z_point (probe_omp.cdl) --------------------------
+# single Z touch from above at one NX point (top face), G10 shift of Z.
+# Same style / fields / state as UDE prb_center_axis (#170 touch feed,
+# #172 move feed, #171 W, M60/M61, PRB_on/PRB_off pairing per operation).
+# Machine vars: #183 measured Z, #186 shift, #187 machine Z (other CS).
+# Option detection (NX passes Russian TYPE o values re-decoded):
+#   prb_zp_zmode   : "Po tochke" = 8 chars, "Zadat" = 6 chars
+#   others         : as prb_center_axis (move_cs 11, write_cs 13/2sp|13/1sp,
+#                    tol_on Net 3 / Da 2, probe_sw 9/2/3, m60 Da 2 / Net 3)
+proc MOM_prb_z_point { } {
+   PRB_tag ENTER_PRB_Z_POINT
+   if {$::prb_omp_debug} {
+      foreach v [lsort [info globals mom_prb_zp_*]] {
+         upvar #0 $v val
+         if {[array exists val]} {
+            set s "" ; foreach k [lsort [array names val]] {append s " $k=$val($k)"}
+         } else {set s " $val"}
+         PRB_out "(DBG UDE $v:[string map {( [ ) ] & + # N} $s])"
+      }
+   }
+   if {[info exists ::mom_command_status]} {
+      if {[string match -nocase "*inactive*" $::mom_command_status]} return
+   }
+   # ---- checks first, no motion on any error
+   set fo 0
+   if {[info exists ::mom_fixture_offset_value] && [string is double -strict $::mom_fixture_offset_value]} {
+      set fo [expr {int($::mom_fixture_offset_value)}]
+   }
+   # -- move CS
+   set mcs "" ; if {[info exists ::mom_prb_zp_move_cs]} {set mcs [string trim $::mom_prb_zp_move_cs]}
+   set mw [PRB_ca_cs $mcs mom_prb_zp_move_p]
+   set mop 0
+   if {$mw == "ERRP"} {PRB_ude_err "P G54.1 DVIZH VNE 1..48" ; return}
+   if {$mw == ""} {
+      if {$mcs == "" || [PRB_opt_is $mcs Operation "\u0418\u0437 \u043e\u043f\u0435\u0440\u0430\u0446\u0438\u0438"] || [string length $mcs] == 11} {
+         set mop 1
+         set ::prb_wcs_override ""
+         if {$fo != 0} {set mw [PRB_wcs]}
+      }
+   }
+   # -- write target
+   set wcs "" ; if {[info exists ::mom_prb_zp_write_cs]} {set wcs [string trim $::mom_prb_zp_write_cs]}
+   set wcsl [string length $wcs] ; set wsp [PRB_ca_spaces $wcs]
+   set tw [PRB_ca_cs $wcs mom_prb_zp_write_p]
+   set wmode ""
+   if {$tw == "ERRP"} {PRB_ude_err "P G54.1 ZAPIS VNE 1..48" ; return}
+   if {$tw != ""} {
+      set wmode CS
+   } elseif {$wcs == "" || [PRB_opt_is $wcs MoveCS "\u0412 \u0421\u041a \u0434\u0432\u0438\u0436\u0435\u043d\u0438\u044f"] || ($wcsl == 13 && $wsp == 2)} {
+      set wmode MOVE
+   } elseif {[PRB_opt_is $wcs None "\u041d\u0435 \u0437\u0430\u043f\u0438\u0441\u044b\u0432\u0430\u0442\u044c"] || ($wcsl == 13 && $wsp == 1)} {
+      set wmode NONE
+   }
+   if {$mw == ""} {
+      if {$mop} {PRB_ude_err "NET SKS"} else {PRB_ude_err "NEVERNAYA SK DVIZHENIYA"}
+      return
+   }
+   if {$wmode == ""} {PRB_ude_err "NEVERNAYA SK ZAPISI" ; return}
+   if {$wmode == "MOVE"} {set tw $mw}
+   # -- point
+   set p [PRB_ude_xyz prb_zp_point]
+   if {![llength $p]} {PRB_ude_err "NET TOCHKI" ; return}
+   lassign $p x y pz
+   # -- nominal Z: "Po tochke" (8) = Z of the NX point, "Zadat" (6) = field
+   set zm "" ; if {[info exists ::mom_prb_zp_zmode]} {set zm [string trim $::mom_prb_zp_zmode]}
+   set zset [expr {[PRB_opt_is $zm Set "\u0417\u0430\u0434\u0430\u0442\u044c"] || [string length $zm] == 6}]
+   if {$zset} {set nom [PRB_num mom_prb_zp_znom $pz]} else {set nom $pz}
+   set off [PRB_num mom_prb_zp_offset 0.0]
+   # -- size (height) check
+   set ton "" ; if {[info exists ::mom_prb_zp_tol_on]} {set ton [string trim $::mom_prb_zp_tol_on]}
+   set tol [expr {[PRB_opt_is $ton Yes "\u0414\u0430"] || [string length $ton] == 2}]
+   set tp  [expr {abs([PRB_num mom_prb_zp_tol_plus 0.1])}]
+   set tm  [expr {abs([PRB_num mom_prb_zp_tol_minus 0.1])}]
+   set so [PRB_num mom_prb_zp_standoff $::prb_standoff]
+   if {$so <= 0.001} {set so $::prb_standoff}
+   set zs [PRB_num mom_prb_zp_zsafe $::prb_zsafe]
+   set za [expr {$nom + $so}]
+   if {$zs < $za + 1.0} {PRB_ude_err "Z BEZOP NIZHE PODVODA" ; return}
+   if {$::prb_omp_debug} {
+      PRB_out "(DBG UDE ZP MW=$mw TW=$tw MODE=$wmode ZMODE LEN=[string length $zm] SET=$zset NOM=$nom OFF=$off TOL=$tol)"
+   }
+   # -- feeds
+   set f [PRB_num mom_prb_zp_feed ""]
+   if {$f != "" && $f > 0} {set ::prb_feed $f}
+   set mf [PRB_num mom_prb_zp_move_feed 3000.0]
+   if {$mf == "" || $mf <= 0} {set mf 3000.0}
+   set ::prb_move_feed $mf
+   set ::prb_move_fvar 172
+   if {$::prb_on_state} {
+      PRB_out "#170=[PRB_fmt $::prb_feed] (PODACHA KASANIYA)"
+      PRB_out "#172=[PRB_fmt $mf] (PODACHA PEREMESHCHENIYA)"
+   }
+   # -- probe switch / M60
+   set sw "" ; if {[info exists ::mom_prb_zp_probe_sw]} {set sw [string trim $::mom_prb_zp_probe_sw]}
+   set swl [string length $sw]
+   if {[PRB_opt_is $sw Yes "\u0414\u0430"] || $swl == 2} {
+      set ::prb_sw_override 1
+   } elseif {[PRB_opt_is $sw No "\u041d\u0435\u0442"] || $swl == 3} {
+      set ::prb_sw_override 0
+   } else {
+      set ::prb_sw_override ""
+   }
+   set m6 "" ; if {[info exists ::mom_prb_zp_m60]} {set m6 [string trim $::mom_prb_zp_m60]}
+   if {[PRB_opt_is $m6 Yes "\u0414\u0430"] || [string length $m6] == 2} {
+      set ::prb_m60_override 1
+   } elseif {[PRB_opt_is $m6 No "\u041d\u0435\u0442"] || [string length $m6] == 3} {
+      set ::prb_m60_override 0
+   } else {
+      set ::prb_m60_override ""
+   }
+   # ---- motion
+   set ::prb_wcs_override $mw
+   if {!$::prb_g43_done && !$::prb_need_g43 && !$::prb_on_state} {
+      set h $::prb_h
+      if {[info exists ::mom_tool_number] && [string is integer -strict $::mom_tool_number] && $::mom_tool_number > 0} {set h $::mom_tool_number}
+      foreach v {mom_tool_adjust_register mom_tool_length_adjust_register} {
+         if {[info exists ::$v] && [string is double -strict [set ::$v]] && [set ::$v] > 0} {set h [expr {int([set ::$v])}]}
+      }
+      set ::prb_h_cur $h
+      set ::prb_need_g43 1
+      set ::prb_last(x) "" ; set ::prb_last(y) "" ; set ::prb_last(z) ""
+      PRB_tag "UDE ARM G43 H$h"
+   }
+   if {![PRB_first_pos $x $y $zs]} {
+      PRB_ensure_on
+      PRB_movez $zs
+      PRB_out "G90 G00 [PRB_ca_cstext $mw]"
+      PRB_out "#171=[PRB_fmt [lindex $mw 2]] (NOL W)"
+      set ::prb_last(x) "" ; set ::prb_last(y) "" ; set ::prb_last(z) ""
+      PRB_move $x $y $zs
+   }
+   PRB_out "#183=#0"
+   PRB_out "#186=#0"
+   PRB_movez $za
+   PRB_out "G65 P9103 Z[PRB_fmt $nom]"
+   PRB_out "#183=#103"
+   set ::prb_last(z) ""
+   PRB_movez $zs
+   PRB_out "#186=#183[PRB_sub $nom]"
+   PRB_out "(Z = #183, SDVIG = #186)"
+   # ---- height check BEFORE writing: alarm stops the program, nothing written
+   if {$tol} {
+      PRB_out "(NOM Z [PRB_fmt $nom] +[PRB_fmt $tp] -[PRB_fmt $tm])"
+      PRB_out "IF\[#186GT[PRB_fmt $tp]\]#3000=1(Z VYSHE DOPUSKA)"
+      PRB_out "IF\[#186LT-[PRB_fmt $tm]\]#3000=2(Z NIZHE DOPUSKA)"
+   }
+   if {abs($off) > 0.0005} {
+      if {$off < 0} {set os "-[PRB_fmt [expr {-$off}]]"} else {set os "+[PRB_fmt $off]"}
+      PRB_out "#186=#186$os (DOP SMESHCHENIE)"
+   }
+   if {$wmode == "NONE"} {
+      PRB_out "(TOLKO IZMERENIE)"
+   } elseif {[lrange $tw 0 1] ne [lrange $mw 0 1]} {
+      lassign $mw mL mP
+      if {$mL == 20} {set sv [expr {7001+20*($mP-1)+2}]} else {set sv [expr {5221+20*($mP-1)+2}]}
+      PRB_out "#187=#$sv (SKS DVIZHENIYA Z)"
+      PRB_out "G90 G10 L[lindex $tw 0] P[lindex $tw 1] Z\[#187+#186\]"
+      PRB_force_mode
+   } else {
+      PRB_shift [lrange $tw 0 1] {{Z 186}}
    }
    set ::prb_move_fvar 170
 }
