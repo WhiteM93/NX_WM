@@ -13,6 +13,7 @@
 #  EVENT prb_z_point ("Привязка Z") added 2026-11-14.
 #  EVENT prb_slope ("Проверка уклона") added 2026-11-18: prb_sl_tol_mode "На длину" 8 / "На 100 мм" 9,
 #    prb_sl_action "Стоп с ошибкой" 14 / "Только показать" 15, prb_sl_show/dprnt "Да" 2 / "Нет" 3.
+#    prb_sl_vec1..6: направление касания (в материал) по X/Y/-Z, пусто = вектор 1, нет вектора 1 = -Z.
 #  ENCODING: Windows-1251 (NX2506 reads CDL as 1251), CRLF.  Created 2026-11-03 for Max Alen.
 ##############################################################################
 
@@ -334,7 +335,7 @@ EVENT prb_slope
    {
       TYPE o
       DEFVAL "X"
-      OPTIONS "X","Y"
+      OPTIONS "X","Y","Z"
       UI_LABEL "Ось проверки"
    }
 
@@ -351,10 +352,22 @@ EVENT prb_slope
       UI_LABEL "Точка 1"
    }
 
+   PARAM prb_sl_vec1
+   {
+      TYPE v
+      UI_LABEL "Вектор 1"
+   }
+
    PARAM prb_sl_point2
    {
       TYPE p
       UI_LABEL "Точка 2"
+   }
+
+   PARAM prb_sl_vec2
+   {
+      TYPE v
+      UI_LABEL "Вектор 2 (пусто = как 1)"
    }
 
    PARAM prb_sl_point3
@@ -363,10 +376,22 @@ EVENT prb_slope
       UI_LABEL "Точка 3 (если точек >= 3)"
    }
 
+   PARAM prb_sl_vec3
+   {
+      TYPE v
+      UI_LABEL "Вектор 3 (пусто = как 1)"
+   }
+
    PARAM prb_sl_point4
    {
       TYPE p
       UI_LABEL "Точка 4 (если точек >= 4)"
+   }
+
+   PARAM prb_sl_vec4
+   {
+      TYPE v
+      UI_LABEL "Вектор 4 (пусто = как 1)"
    }
 
    PARAM prb_sl_point5
@@ -375,10 +400,22 @@ EVENT prb_slope
       UI_LABEL "Точка 5 (если точек >= 5)"
    }
 
+   PARAM prb_sl_vec5
+   {
+      TYPE v
+      UI_LABEL "Вектор 5 (пусто = как 1)"
+   }
+
    PARAM prb_sl_point6
    {
       TYPE p
       UI_LABEL "Точка 6 (если точек >= 6)"
+   }
+
+   PARAM prb_sl_vec6
+   {
+      TYPE v
+      UI_LABEL "Вектор 6 (пусто = как 1)"
    }
 
    PARAM prb_sl_standoff

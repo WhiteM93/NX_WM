@@ -8,7 +8,7 @@
 #           G65 P9103 X/Y/Z (no F) or D F#170  measuring touch
 #  Results: X->#101 Y->#102 Z->#103 D->#100
 #  UDEs (probe_omp.cdl): prb_center_axis (center by 2 points), prb_z_point (Z top touch, 2026-11-14),
-#        prb_slope (slope check by 2..6 Z touches, results #550..#563, 2026-11-18)
+#        prb_slope (slope check by 2..6 touches along X/Y/-Z vectors, results #550..#563, 2026-11-18)
 #  Own vars: #152-#199 (#190-192 reserved wall check), #170 feed, #171 W, #172 move feed (UDE prb_center_axis).
 #  M60 before G65 P9101 A1. / M61 after A0. (G01 without spindle inside O9101,
 #  Fanuc alarm 2301), switch ::prb_m60_enable / UDE field prb_ca_m60.
@@ -1175,26 +1175,39 @@ proc MOM_prb_z_point { } {
 }
 
 #---------------- UDE prb_slope (probe_omp.cdl) ----------------------------
-# Slope (level) check: N = 2..6 Z touches from above at NX points, slope of
-# the part along X or Y by least squares, compare with tolerance, show result.
+# Slope check: N = 2..6 touches at NX points, each with a touch vector
+# (TYPE v, probing direction into the material, as in prb_center_axis:
+# approach = point - vec*standoff). Touch axis X/Y (walls) or -Z (top).
+# All points must share one touch axis. Check axis X/Y/Z != touch axis.
+# The deviation along the touch axis is fitted (least squares) against the
+# check-axis coordinate of the points, compared with tolerance and shown.
+#   touch -Z, check X/Y : how level the top is along X/Y
+#   touch X/Y, check Z  : how the wall leans over its height
+#   touch X, check Y (or touch Y, check X): wall straight along its length
+# Measured value: X -> #101, Y -> #102, Z -> #103 (MAN-P p.50 "6.10",
+# probe_reference.md section 4). Sign: deviation = measured - nominal as a
+# coordinate of the touch axis (+ = surface found at the larger coordinate,
+# for -Z touch + = higher than the model), independent of the vector sign.
+# Missing vector k -> vector of point 1, missing vector 1 -> -Z.
 # Same style / state as prb_z_point (#170 touch feed, #172 move feed, #171 W,
 # M60/M61 and probe on/off via PRB_on/PRB_off, end_of_path flushes A0./M61).
-# Measured Z after G65 P9103 Z.. is #103 (MAN-P p.50 "6.10", probe_reference.md).
 # Scratch vars (cleared by reset):
-#   #160..#165 deviation of point 1..6 from its NX Z (#103 - Znom)
-#   #166 dZ over measured length (least squares, + = Z rises to +axis)
-#   #167 slope per 100 mm, #168 angle deg, #169 spread (max-min deviation)
+#   #160..#165 deviation of point 1..6 along the touch axis
+#   #166 deviation difference over the check length (least squares,
+#        + = deviation grows toward +check axis)
+#   #167 per 100 mm, #168 angle deg, #169 spread (max-min deviation)
 #   #173 max, #174 min, #176 status (0 ok, 1 out of tolerance)
 # Result vars for the operator (persistent, macro screen), base ::prb_sl_vbase:
-#   +0 number of points, +1..+6 measured Z of points 1..6 (#103),
-#   +7 dZ, +8 slope per 100 mm, +9 angle deg, +10 spread, +11 length,
-#   +12 tolerance, +13 status (0 ok, 1 out)   -> default #550..#563
-#   (#537-#599 not used by the m&h macros that Max sent; calibration ends #536)
+#   +0 number of points, +1..+6 measured value of points 1..6 (#101/#102/#103),
+#   +7 deviation difference, +8 per 100 mm, +9 angle deg, +10 spread,
+#   +11 length, +12 tolerance, +13 status (0 ok, 1 out) -> default #550..#563
+#   (checked 2026-11-18 against the machine subprograms O9001, O9023, O9029,
+#    O9100-O9106, O9109-O9112, O9910-O9916: #550-#563 not used)
 # Option detection (Russian TYPE o values, length based like prb_z_point):
 #   prb_sl_tol_mode: "Na dlinu" 8 chars, "Na 100 mm" 9 chars (has 100)
 #   prb_sl_action  : "Stop s oshibkoy" 14 chars, "Tolko pokazat" 15 chars
 #   prb_sl_show / prb_sl_dprnt: "Da" 2, "Net" 3
-#   prb_sl_axis    : X / Y (ASCII)
+#   prb_sl_axis    : X / Y / Z (ASCII)
 if {![info exists ::prb_sl_vbase]} {set ::prb_sl_vbase 550}
 
 # coefficient format for long expressions (6 decimals, trimmed)
@@ -1203,6 +1216,24 @@ proc PRB_cfmt { v } {
    set s [string trimright $s 0]
    if {$s == "-0."} {set s "0."}
    return $s
+}
+
+# message with "&#nnn&" values: same form as probe_wall_check (#3006=-1),
+# through PWC_out_amp (::pwc_amp_mode, LITERAL = verified) if it is loaded
+proc PRB_sl_amp { line } {
+   if {[llength [info commands PWC_out_amp]] && [info exists ::pwc_amp_mode]} {PWC_out_amp $line} else {MOM_output_literal $line}
+}
+
+# vector -> {axis sign} along X, Y or Z, "" otherwise
+proc PRB_sl_vaxis { v } {
+   lassign $v i j k
+   set n [expr {sqrt($i*$i+$j*$j+$k*$k)}]
+   if {$n < 1e-6} {return ""}
+   set i [expr {$i/$n}] ; set j [expr {$j/$n}] ; set k [expr {$k/$n}]
+   if {abs($i) > 0.999} {return [list X [expr {$i<0?-1:1}]]}
+   if {abs($j) > 0.999} {return [list Y [expr {$j<0?-1:1}]]}
+   if {abs($k) > 0.999} {return [list Z [expr {$k<0?-1:1}]]}
+   return ""
 }
 
 proc MOM_prb_slope { } {
@@ -1240,19 +1271,35 @@ proc MOM_prb_slope { } {
       if {$mop} {PRB_ude_err "NET SKS"} else {PRB_ude_err "NEVERNAYA SK DVIZHENIYA"}
       return
    }
-   # -- axis
+   # -- check axis
    set ax "X" ; if {[info exists ::mom_prb_sl_axis]} {set ax [string toupper [string trim $::mom_prb_sl_axis]]}
-   if {$ax == "Y"} {set ix 1} elseif {$ax == "X" || $ax == ""} {set ax X ; set ix 0} else {PRB_ude_err "OS NE X/Y" ; return}
-   # -- points
+   if {$ax == ""} {set ax X}
+   set ix [lsearch -exact {X Y Z} $ax]
+   if {$ix < 0} {PRB_ude_err "OS NE X/Y/Z" ; return}
+   # -- points and touch vectors
    set n [expr {int([PRB_num mom_prb_sl_npts 2])}]
    if {$n < 2 || $n > 6} {PRB_ude_err "TOCHEK NADO 2..6" ; return}
-   set pts {}
+   set pts {} ; set tax {}
+   set v1 [PRB_ude_xyz prb_sl_vec1]
+   if {![llength $v1]} {set v1 {0.0 0.0 -1.0}}
    for {set i 1} {$i <= $n} {incr i} {
       set p [PRB_ude_xyz prb_sl_point$i]
       if {![llength $p]} {PRB_ude_err "NET TOCHKI $i" ; return}
-      lappend pts $p
+      set v [PRB_ude_xyz prb_sl_vec$i]
+      if {![llength $v]} {set v $v1}
+      set a [PRB_sl_vaxis $v]
+      if {$a == ""} {PRB_ude_err "VEKTOR $i NE PO X/Y/Z" ; return}
+      if {[lindex $a 0] == "Z" && [lindex $a 1] > 0} {PRB_ude_err "VEKTOR $i +Z, NADO -Z" ; return}
+      lappend pts $p ; lappend tax $a
    }
-   # -- geometry: least squares weights along the axis (known at post time)
+   set A [lindex $tax 0 0]
+   foreach a $tax {
+      if {[lindex $a 0] != $A} {PRB_ude_err "VEKTORY PO RAZNYM OSYAM" ; return}
+   }
+   if {$A == $ax} {PRB_ude_err "OS PROVERKI = OS KASANIYA" ; return}
+   set ia [lsearch -exact {X Y Z} $A]
+   set r [expr {101 + $ia}]
+   # -- geometry: least squares weights along the check axis (known at post time)
    set su 0.0 ; set umin "" ; set umax ""
    foreach p $pts {
       set u [lindex $p $ix] ; set su [expr {$su + $u}]
@@ -1261,10 +1308,10 @@ proc MOM_prb_slope { } {
    }
    set ub [expr {$su / $n}]
    set L [expr {$umax - $umin}]
-   if {$L < 1.0} {PRB_ude_err "DLINA PO $ax MENSHE 1 MM" ; return}
+   if {$L < 1.0} {PRB_ude_err "TOCHKI NE RAZNESENY PO $ax" ; return}
    set sxx 0.0
    foreach p $pts {set d [expr {[lindex $p $ix] - $ub}] ; set sxx [expr {$sxx + $d*$d}]}
-   # dZ over L = sum c_i * dev_i, c_i = (u_i - ub) * L / Sxx
+   # difference over L = sum c_i * dev_i, c_i = (u_i - ub) * L / Sxx
    set terms ""
    set i 0
    foreach p $pts {
@@ -1301,10 +1348,11 @@ proc MOM_prb_slope { } {
    if {$so <= 0.001} {set so $::prb_standoff}
    set zs [PRB_num mom_prb_sl_zsafe $::prb_zsafe]
    foreach p $pts {
-      if {$zs < [lindex $p 2] + $so + 1.0} {PRB_ude_err "Z BEZOP NIZHE PODVODA" ; return}
+      if {$A == "Z"} {set zmin [expr {[lindex $p 2] + $so + 1.0}]} else {set zmin [expr {[lindex $p 2] + 1.0}]}
+      if {$zs < $zmin} {PRB_ude_err "Z BEZOP NIZHE PODVODA" ; return}
    }
    if {$::prb_omp_debug} {
-      PRB_out "(DBG UDE SL MW=$mw AX=$ax N=$n L=[PRB_fmt $L] PER100=$per100 STOP=$stop SHOW=$show DPRNT=$dprnt)"
+      PRB_out "(DBG UDE SL MW=$mw AX=$ax TOUCH=$A N=$n L=[PRB_fmt $L] PER100=$per100 STOP=$stop SHOW=$show DPRNT=$dprnt)"
    }
    # -- feeds
    set f [PRB_num mom_prb_sl_feed ""]
@@ -1350,37 +1398,55 @@ proc MOM_prb_slope { } {
    }
    set b $::prb_sl_vbase
    set i 0
-   foreach p $pts {
-      lassign $p x y nom
-      set za [expr {$nom + $so}]
+   foreach p $pts a $tax {
+      lassign $p x y z
+      set s [lindex $a 1]
+      set nom [lindex $p $ia]
+      # approach position = point - vec*standoff (only the touch axis moves)
+      set ap $p
+      lset ap $ia [expr {$nom - $s*$so}]
+      lassign $ap sx sy sz
       if {$i == 0} {
-         PRB_out "(PROVERKA UKLONA $ax $n TOCHKI)"
-         if {![PRB_first_pos $x $y $zs]} {
+         PRB_out "(PROVERKA UKLONA $ax KASANIE $A $n TOCHKI)"
+         if {![PRB_first_pos $sx $sy $zs]} {
             PRB_ensure_on
             PRB_movez $zs
             PRB_out "G90 G00 [PRB_ca_cstext $mw]"
             PRB_out "#171=[PRB_fmt [lindex $mw 2]] (NOL W)"
             set ::prb_last(x) "" ; set ::prb_last(y) "" ; set ::prb_last(z) ""
-            PRB_move $x $y $zs
+            PRB_move $sx $sy $zs
          }
-         set s "" ; for {set k 1} {$k <= 6} {incr k} {append s "#[expr {$b+$k}]=#0 "}
-         PRB_out [string trim $s]
+         set t "" ; for {set k 1} {$k <= 6} {incr k} {append t "#[expr {$b+$k}]=#0 "}
+         PRB_out [string trim $t]
          PRB_out "#[expr {$b+13}]=#0"
       } else {
-         PRB_move $x $y $zs
+         PRB_move $sx $sy $zs
       }
       set k [expr {$i + 1}]
       PRB_out "(TOCHKA $k)"
-      PRB_movez $za
-      PRB_out "G65 P9103 Z[PRB_fmt $nom]"
-      PRB_out "#[expr {$b+$k}]=#103 (Z$k)"
-      PRB_out "#[expr {160+$i}]=#103[PRB_sub $nom]"
-      set ::prb_last(z) ""
+      if {$A == "Z"} {
+         PRB_movez $sz
+      } elseif {$::prb_omp_wall_dropR && $::prb_side_z_minus_r} {
+         PRB_movez [expr {$z - $::prb_ball_r}]
+      } else {
+         PRB_movez $z
+      }
+      PRB_out "G65 P9103 $A[PRB_fmt $nom]"
+      PRB_out "#[expr {$b+$k}]=#$r ($A$k)"
+      PRB_out "#[expr {160+$i}]=#$r[PRB_sub $nom]"
+      if {$A == "Z"} {
+         set ::prb_last(z) ""
+      } else {
+         # retract along the touch axis back to the approach position
+         PRB_out "G65 P9102 $A[PRB_fmt [lindex $ap $ia]] F#$::prb_move_fvar"
+         set ::prb_last([string tolower $A]) [lindex $ap $ia]
+      }
       PRB_movez $zs
       incr i
    }
    # ---- calculation
-   PRB_out "#166=$terms (DZ NA DLINE [PRB_fmt $L])"
+   set dn "D$A"
+   PRB_out "#166=$terms ($dn NA DLINE [PRB_fmt $L] PO $ax)"
    PRB_out "#167=#166*100/[PRB_fmt $L] (NA 100 MM)"
    PRB_out "#168=ATAN\[#166\]/\[[PRB_fmt $L]\] (UGOL)"
    PRB_out "IF\[#168GT180\]THEN#168=#168-360"
@@ -1401,7 +1467,7 @@ proc MOM_prb_slope { } {
    PRB_out "IF\[ABS\[#$cv\]GT[PRB_fmt $tol]\]THEN#176=1"
    # ---- results to persistent vars (survive reset / alarm)
    PRB_out "#$b=$n. (KOL TOCHEK)"
-   PRB_out "#[expr {$b+7}]=#166 (DZ)"
+   PRB_out "#[expr {$b+7}]=#166 ($dn)"
    PRB_out "#[expr {$b+8}]=#167 (NA 100)"
    PRB_out "#[expr {$b+9}]=#168 (UGOL)"
    PRB_out "#[expr {$b+10}]=#169 (RAZBROS)"
@@ -1410,21 +1476,22 @@ proc MOM_prb_slope { } {
    PRB_out "#[expr {$b+13}]=#176 (STATUS)"
    if {$dprnt} {
       PRB_out "POPEN"
-      PRB_out "DPRNT\[UKLON*$ax*$n*TOCHKI\]"
-      for {set k 1} {$k <= $n} {incr k} {PRB_out "DPRNT\[Z$k*#[expr {$b+$k}]\[44\]\]"}
-      PRB_out "DPRNT\[DZ*#[expr {$b+7}]\[44\]*NA100*#[expr {$b+8}]\[44\]\]"
+      PRB_out "DPRNT\[UKLON*$ax*KASANIE*$A*$n*TOCHKI\]"
+      for {set k 1} {$k <= $n} {incr k} {PRB_out "DPRNT\[$A$k*#[expr {$b+$k}]\[44\]\]"}
+      PRB_out "DPRNT\[$dn*#[expr {$b+7}]\[44\]*NA100*#[expr {$b+8}]\[44\]\]"
       PRB_out "DPRNT\[UGOL*#[expr {$b+9}]\[34\]*RAZBROS*#[expr {$b+10}]\[44\]\]"
       PRB_out "DPRNT\[STATUS*#[expr {$b+13}]\[10\]\]"
       PRB_out "PCLOS"
    }
-   PRB_out "(DZ #[expr {$b+7}] NA100 #[expr {$b+8}] UGOL #[expr {$b+9}] DOPUSK [PRB_fmt $tol] $ct)"
+   PRB_out "($dn #[expr {$b+7}] NA100 #[expr {$b+8}] UGOL #[expr {$b+9}] DOPUSK [PRB_fmt $tol] $ct)"
+   set vd "&#[expr {$b+7}]&" ; set v100 "&#[expr {$b+8}]&"
    if {$stop} {
       PRB_out "IF\[#176EQ1\]THEN#3000=1(UKLON VNE DOPUSKA)"
    } else {
-      PRB_out "IF\[#176EQ1\]THEN#3006=1(UKLON VNE DOPUSKA)"
+      PRB_sl_amp "IF\[#176EQ1\]THEN#3006=-1(VNE DOP $dn=$vd U=$v100)"
    }
    if {$show} {
-      PRB_out "IF\[#176EQ0\]THEN#3006=1(UKLON V DOPUSKE SM #[expr {$b+7}])"
+      PRB_sl_amp "IF\[#176EQ0\]THEN#3006=-1(V DOP $dn=$vd U=$v100)"
    }
    set ::prb_move_fvar 170
 }
