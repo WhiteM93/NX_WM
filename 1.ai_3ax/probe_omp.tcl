@@ -7,7 +7,8 @@
 #           G65 P9102 X/Y/Z F#170          protected positioning (F#172 in UDE prb_center_axis)
 #           G65 P9103 X/Y/Z (no F) or D F#170  measuring touch
 #  Results: X->#101 Y->#102 Z->#103 D->#100
-#  UDEs (probe_omp.cdl): prb_center_axis (center by 2 points), prb_z_point (Z top touch, 2026-11-14)
+#  UDEs (probe_omp.cdl): prb_center_axis (center by 2 points), prb_z_point (Z top touch, 2026-11-14),
+#        prb_slope (slope check by 2..6 Z touches, results #550..#563, 2026-11-18)
 #  Own vars: #152-#199 (#190-192 reserved wall check), #170 feed, #171 W, #172 move feed (UDE prb_center_axis).
 #  M60 before G65 P9101 A1. / M61 after A0. (G01 without spindle inside O9101,
 #  Fanuc alarm 2301), switch ::prb_m60_enable / UDE field prb_ca_m60.
@@ -1169,6 +1170,261 @@ proc MOM_prb_z_point { } {
       PRB_force_mode
    } else {
       PRB_shift [lrange $tw 0 1] {{Z 186}}
+   }
+   set ::prb_move_fvar 170
+}
+
+#---------------- UDE prb_slope (probe_omp.cdl) ----------------------------
+# Slope (level) check: N = 2..6 Z touches from above at NX points, slope of
+# the part along X or Y by least squares, compare with tolerance, show result.
+# Same style / state as prb_z_point (#170 touch feed, #172 move feed, #171 W,
+# M60/M61 and probe on/off via PRB_on/PRB_off, end_of_path flushes A0./M61).
+# Measured Z after G65 P9103 Z.. is #103 (MAN-P p.50 "6.10", probe_reference.md).
+# Scratch vars (cleared by reset):
+#   #160..#165 deviation of point 1..6 from its NX Z (#103 - Znom)
+#   #166 dZ over measured length (least squares, + = Z rises to +axis)
+#   #167 slope per 100 mm, #168 angle deg, #169 spread (max-min deviation)
+#   #173 max, #174 min, #176 status (0 ok, 1 out of tolerance)
+# Result vars for the operator (persistent, macro screen), base ::prb_sl_vbase:
+#   +0 number of points, +1..+6 measured Z of points 1..6 (#103),
+#   +7 dZ, +8 slope per 100 mm, +9 angle deg, +10 spread, +11 length,
+#   +12 tolerance, +13 status (0 ok, 1 out)   -> default #550..#563
+#   (#537-#599 not used by the m&h macros that Max sent; calibration ends #536)
+# Option detection (Russian TYPE o values, length based like prb_z_point):
+#   prb_sl_tol_mode: "Na dlinu" 8 chars, "Na 100 mm" 9 chars (has 100)
+#   prb_sl_action  : "Stop s oshibkoy" 14 chars, "Tolko pokazat" 15 chars
+#   prb_sl_show / prb_sl_dprnt: "Da" 2, "Net" 3
+#   prb_sl_axis    : X / Y (ASCII)
+if {![info exists ::prb_sl_vbase]} {set ::prb_sl_vbase 550}
+
+# coefficient format for long expressions (6 decimals, trimmed)
+proc PRB_cfmt { v } {
+   set s [format "%.6f" $v]
+   set s [string trimright $s 0]
+   if {$s == "-0."} {set s "0."}
+   return $s
+}
+
+proc MOM_prb_slope { } {
+   PRB_tag ENTER_PRB_SLOPE
+   if {$::prb_omp_debug} {
+      foreach v [lsort [info globals mom_prb_sl_*]] {
+         upvar #0 $v val
+         if {[array exists val]} {
+            set s "" ; foreach k [lsort [array names val]] {append s " $k=$val($k)"}
+         } else {set s " $val"}
+         PRB_out "(DBG UDE $v:[string map {( [ ) ] & + # N} $s])"
+      }
+   }
+   if {[info exists ::mom_command_status]} {
+      if {[string match -nocase "*inactive*" $::mom_command_status]} return
+   }
+   # ---- checks first, no motion on any error
+   set fo 0
+   if {[info exists ::mom_fixture_offset_value] && [string is double -strict $::mom_fixture_offset_value]} {
+      set fo [expr {int($::mom_fixture_offset_value)}]
+   }
+   # -- move CS
+   set mcs "" ; if {[info exists ::mom_prb_sl_move_cs]} {set mcs [string trim $::mom_prb_sl_move_cs]}
+   set mw [PRB_ca_cs $mcs mom_prb_sl_move_p]
+   set mop 0
+   if {$mw == "ERRP"} {PRB_ude_err "P G54.1 DVIZH VNE 1..48" ; return}
+   if {$mw == ""} {
+      if {$mcs == "" || [PRB_opt_is $mcs Operation "\u0418\u0437 \u043e\u043f\u0435\u0440\u0430\u0446\u0438\u0438"] || [string length $mcs] == 11} {
+         set mop 1
+         set ::prb_wcs_override ""
+         if {$fo != 0} {set mw [PRB_wcs]}
+      }
+   }
+   if {$mw == ""} {
+      if {$mop} {PRB_ude_err "NET SKS"} else {PRB_ude_err "NEVERNAYA SK DVIZHENIYA"}
+      return
+   }
+   # -- axis
+   set ax "X" ; if {[info exists ::mom_prb_sl_axis]} {set ax [string toupper [string trim $::mom_prb_sl_axis]]}
+   if {$ax == "Y"} {set ix 1} elseif {$ax == "X" || $ax == ""} {set ax X ; set ix 0} else {PRB_ude_err "OS NE X/Y" ; return}
+   # -- points
+   set n [expr {int([PRB_num mom_prb_sl_npts 2])}]
+   if {$n < 2 || $n > 6} {PRB_ude_err "TOCHEK NADO 2..6" ; return}
+   set pts {}
+   for {set i 1} {$i <= $n} {incr i} {
+      set p [PRB_ude_xyz prb_sl_point$i]
+      if {![llength $p]} {PRB_ude_err "NET TOCHKI $i" ; return}
+      lappend pts $p
+   }
+   # -- geometry: least squares weights along the axis (known at post time)
+   set su 0.0 ; set umin "" ; set umax ""
+   foreach p $pts {
+      set u [lindex $p $ix] ; set su [expr {$su + $u}]
+      if {$umin == "" || $u < $umin} {set umin $u}
+      if {$umax == "" || $u > $umax} {set umax $u}
+   }
+   set ub [expr {$su / $n}]
+   set L [expr {$umax - $umin}]
+   if {$L < 1.0} {PRB_ude_err "DLINA PO $ax MENSHE 1 MM" ; return}
+   set sxx 0.0
+   foreach p $pts {set d [expr {[lindex $p $ix] - $ub}] ; set sxx [expr {$sxx + $d*$d}]}
+   # dZ over L = sum c_i * dev_i, c_i = (u_i - ub) * L / Sxx
+   set terms ""
+   set i 0
+   foreach p $pts {
+      set c [expr {([lindex $p $ix] - $ub) * $L / $sxx}]
+      set v [expr {160 + $i}]
+      if {abs($c) >= 0.0000005} {
+         if {abs($c - 1.0) < 0.0000005} {
+            set t "#$v"
+         } elseif {abs($c + 1.0) < 0.0000005} {
+            set t "-#$v"
+         } else {
+            set t "[PRB_cfmt $c]*#$v"
+         }
+         if {$terms != "" && [string index $t 0] != "-"} {append terms "+"}
+         append terms $t
+      }
+      incr i
+   }
+   # -- tolerance / action / output options
+   set tol [expr {abs([PRB_num mom_prb_sl_tol 0.05])}]
+   set tm "" ; if {[info exists ::mom_prb_sl_tol_mode]} {set tm [string trim $::mom_prb_sl_tol_mode]}
+   set per100 [expr {[PRB_opt_is $tm Per100 "\u041d\u0430 100 \u043c\u043c"] || [string match "*100*" $tm]}]
+   set ac "" ; if {[info exists ::mom_prb_sl_action]} {set ac [string trim $::mom_prb_sl_action]}
+   set acl [string length $ac]
+   set stop 1
+   if {[PRB_opt_is $ac Show "\u0422\u043e\u043b\u044c\u043a\u043e \u043f\u043e\u043a\u0430\u0437\u0430\u0442\u044c"] || $acl == 15} {set stop 0}
+   set sh "" ; if {[info exists ::mom_prb_sl_show]} {set sh [string trim $::mom_prb_sl_show]}
+   set show 1
+   if {[PRB_opt_is $sh No "\u041d\u0435\u0442"] || [string length $sh] == 3} {set show 0}
+   set dp "" ; if {[info exists ::mom_prb_sl_dprnt]} {set dp [string trim $::mom_prb_sl_dprnt]}
+   set dprnt [expr {[PRB_opt_is $dp Yes "\u0414\u0430"] || [string length $dp] == 2}]
+   # -- heights
+   set so [PRB_num mom_prb_sl_standoff $::prb_standoff]
+   if {$so <= 0.001} {set so $::prb_standoff}
+   set zs [PRB_num mom_prb_sl_zsafe $::prb_zsafe]
+   foreach p $pts {
+      if {$zs < [lindex $p 2] + $so + 1.0} {PRB_ude_err "Z BEZOP NIZHE PODVODA" ; return}
+   }
+   if {$::prb_omp_debug} {
+      PRB_out "(DBG UDE SL MW=$mw AX=$ax N=$n L=[PRB_fmt $L] PER100=$per100 STOP=$stop SHOW=$show DPRNT=$dprnt)"
+   }
+   # -- feeds
+   set f [PRB_num mom_prb_sl_feed ""]
+   if {$f != "" && $f > 0} {set ::prb_feed $f}
+   set mf [PRB_num mom_prb_sl_move_feed 3000.0]
+   if {$mf == "" || $mf <= 0} {set mf 3000.0}
+   set ::prb_move_feed $mf
+   set ::prb_move_fvar 172
+   if {$::prb_on_state} {
+      PRB_out "#170=[PRB_fmt $::prb_feed] (PODACHA KASANIYA)"
+      PRB_out "#172=[PRB_fmt $mf] (PODACHA PEREMESHCHENIYA)"
+   }
+   # -- probe switch / M60
+   set sw "" ; if {[info exists ::mom_prb_sl_probe_sw]} {set sw [string trim $::mom_prb_sl_probe_sw]}
+   set swl [string length $sw]
+   if {[PRB_opt_is $sw Yes "\u0414\u0430"] || $swl == 2} {
+      set ::prb_sw_override 1
+   } elseif {[PRB_opt_is $sw No "\u041d\u0435\u0442"] || $swl == 3} {
+      set ::prb_sw_override 0
+   } else {
+      set ::prb_sw_override ""
+   }
+   set m6 "" ; if {[info exists ::mom_prb_sl_m60]} {set m6 [string trim $::mom_prb_sl_m60]}
+   if {[PRB_opt_is $m6 Yes "\u0414\u0430"] || [string length $m6] == 2} {
+      set ::prb_m60_override 1
+   } elseif {[PRB_opt_is $m6 No "\u041d\u0435\u0442"] || [string length $m6] == 3} {
+      set ::prb_m60_override 0
+   } else {
+      set ::prb_m60_override ""
+   }
+   # ---- motion
+   set ::prb_wcs_override $mw
+   if {!$::prb_g43_done && !$::prb_need_g43 && !$::prb_on_state} {
+      set h $::prb_h
+      if {[info exists ::mom_tool_number] && [string is integer -strict $::mom_tool_number] && $::mom_tool_number > 0} {set h $::mom_tool_number}
+      foreach v {mom_tool_adjust_register mom_tool_length_adjust_register} {
+         if {[info exists ::$v] && [string is double -strict [set ::$v]] && [set ::$v] > 0} {set h [expr {int([set ::$v])}]}
+      }
+      set ::prb_h_cur $h
+      set ::prb_need_g43 1
+      set ::prb_last(x) "" ; set ::prb_last(y) "" ; set ::prb_last(z) ""
+      PRB_tag "UDE ARM G43 H$h"
+   }
+   set b $::prb_sl_vbase
+   set i 0
+   foreach p $pts {
+      lassign $p x y nom
+      set za [expr {$nom + $so}]
+      if {$i == 0} {
+         PRB_out "(PROVERKA UKLONA $ax $n TOCHKI)"
+         if {![PRB_first_pos $x $y $zs]} {
+            PRB_ensure_on
+            PRB_movez $zs
+            PRB_out "G90 G00 [PRB_ca_cstext $mw]"
+            PRB_out "#171=[PRB_fmt [lindex $mw 2]] (NOL W)"
+            set ::prb_last(x) "" ; set ::prb_last(y) "" ; set ::prb_last(z) ""
+            PRB_move $x $y $zs
+         }
+         set s "" ; for {set k 1} {$k <= 6} {incr k} {append s "#[expr {$b+$k}]=#0 "}
+         PRB_out [string trim $s]
+         PRB_out "#[expr {$b+13}]=#0"
+      } else {
+         PRB_move $x $y $zs
+      }
+      set k [expr {$i + 1}]
+      PRB_out "(TOCHKA $k)"
+      PRB_movez $za
+      PRB_out "G65 P9103 Z[PRB_fmt $nom]"
+      PRB_out "#[expr {$b+$k}]=#103 (Z$k)"
+      PRB_out "#[expr {160+$i}]=#103[PRB_sub $nom]"
+      set ::prb_last(z) ""
+      PRB_movez $zs
+      incr i
+   }
+   # ---- calculation
+   PRB_out "#166=$terms (DZ NA DLINE [PRB_fmt $L])"
+   PRB_out "#167=#166*100/[PRB_fmt $L] (NA 100 MM)"
+   PRB_out "#168=ATAN\[#166\]/\[[PRB_fmt $L]\] (UGOL)"
+   PRB_out "IF\[#168GT180\]THEN#168=#168-360"
+   PRB_out "#173=#160"
+   PRB_out "#174=#160"
+   for {set k 1} {$k < $n} {incr k} {
+      set v [expr {160+$k}]
+      PRB_out "IF\[#${v}GT#173\]THEN#173=#$v"
+      PRB_out "IF\[#${v}LT#174\]THEN#174=#$v"
+   }
+   PRB_out "#169=#173-#174 (RAZBROS)"
+   if {$per100} {
+      set cv 167 ; set ct "NA 100 MM"
+   } else {
+      set cv 166 ; set ct "NA DLINE [PRB_fmt $L]"
+   }
+   PRB_out "#176=0"
+   PRB_out "IF\[ABS\[#$cv\]GT[PRB_fmt $tol]\]THEN#176=1"
+   # ---- results to persistent vars (survive reset / alarm)
+   PRB_out "#$b=$n. (KOL TOCHEK)"
+   PRB_out "#[expr {$b+7}]=#166 (DZ)"
+   PRB_out "#[expr {$b+8}]=#167 (NA 100)"
+   PRB_out "#[expr {$b+9}]=#168 (UGOL)"
+   PRB_out "#[expr {$b+10}]=#169 (RAZBROS)"
+   PRB_out "#[expr {$b+11}]=[PRB_fmt $L] (DLINA)"
+   PRB_out "#[expr {$b+12}]=[PRB_fmt $tol] (DOPUSK $ct)"
+   PRB_out "#[expr {$b+13}]=#176 (STATUS)"
+   if {$dprnt} {
+      PRB_out "POPEN"
+      PRB_out "DPRNT\[UKLON*$ax*$n*TOCHKI\]"
+      for {set k 1} {$k <= $n} {incr k} {PRB_out "DPRNT\[Z$k*#[expr {$b+$k}]\[44\]\]"}
+      PRB_out "DPRNT\[DZ*#[expr {$b+7}]\[44\]*NA100*#[expr {$b+8}]\[44\]\]"
+      PRB_out "DPRNT\[UGOL*#[expr {$b+9}]\[34\]*RAZBROS*#[expr {$b+10}]\[44\]\]"
+      PRB_out "DPRNT\[STATUS*#[expr {$b+13}]\[10\]\]"
+      PRB_out "PCLOS"
+   }
+   PRB_out "(DZ #[expr {$b+7}] NA100 #[expr {$b+8}] UGOL #[expr {$b+9}] DOPUSK [PRB_fmt $tol] $ct)"
+   if {$stop} {
+      PRB_out "IF\[#176EQ1\]THEN#3000=1(UKLON VNE DOPUSKA)"
+   } else {
+      PRB_out "IF\[#176EQ1\]THEN#3006=1(UKLON VNE DOPUSKA)"
+   }
+   if {$show} {
+      PRB_out "IF\[#176EQ0\]THEN#3006=1(UKLON V DOPUSKE SM #[expr {$b+7}])"
    }
    set ::prb_move_fvar 170
 }

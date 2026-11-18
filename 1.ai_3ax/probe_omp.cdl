@@ -1,6 +1,6 @@
 ##############################################################################
 #  probe_omp.cdl  -  User Defined Events for post 1.ai_3ax
-#  Handlers: proc MOM_prb_center_axis, MOM_prb_z_point in probe_omp.tcl
+#  Handlers: proc MOM_prb_center_axis, MOM_prb_z_point, MOM_prb_slope in probe_omp.tcl
 #  Included from ai_3ax.def:  $UGII_CAM_POST_DIR/1.ai_3ax/probe_omp.cdl
 #  Param types used: p (point, picked in NX), v (vector, NX vector dialog),
 #  d, i, o.  Option values are Russian; Tcl compares them via \u escapes,
@@ -11,6 +11,8 @@
 #    prb_ca_m60      "Да" 2, "Нет" 3 (M60 before P9101 A1., M61 after A0.)
 #    prb_zp_*        same as prb_ca_*; prb_zp_zmode "По точке" 8, "Задать" 6
 #  EVENT prb_z_point ("Привязка Z") added 2026-11-14.
+#  EVENT prb_slope ("Проверка уклона") added 2026-11-18: prb_sl_tol_mode "На длину" 8 / "На 100 мм" 9,
+#    prb_sl_action "Стоп с ошибкой" 14 / "Только показать" 15, prb_sl_show/dprnt "Да" 2 / "Нет" 3.
 #  ENCODING: Windows-1251 (NX2506 reads CDL as 1251), CRLF.  Created 2026-11-03 for Max Alen.
 ##############################################################################
 
@@ -312,5 +314,170 @@ EVENT prb_z_point
       TYPE d
       DEFVAL "0.1"
       UI_LABEL "Допуск -"
+   }
+}
+EVENT prb_slope
+{
+   POST_EVENT "prb_slope"
+   UI_LABEL "Проверка уклона"
+   CATEGORY MILL
+
+   PARAM command_status
+   {
+      TYPE o
+      DEFVAL "Active"
+      OPTIONS "Active","Inactive","User Defined"
+      UI_LABEL "Статус"
+   }
+
+   PARAM prb_sl_axis
+   {
+      TYPE o
+      DEFVAL "X"
+      OPTIONS "X","Y"
+      UI_LABEL "Ось проверки"
+   }
+
+   PARAM prb_sl_npts
+   {
+      TYPE i
+      DEFVAL "2"
+      UI_LABEL "Количество точек (2-6)"
+   }
+
+   PARAM prb_sl_point1
+   {
+      TYPE p
+      UI_LABEL "Точка 1"
+   }
+
+   PARAM prb_sl_point2
+   {
+      TYPE p
+      UI_LABEL "Точка 2"
+   }
+
+   PARAM prb_sl_point3
+   {
+      TYPE p
+      UI_LABEL "Точка 3 (если точек >= 3)"
+   }
+
+   PARAM prb_sl_point4
+   {
+      TYPE p
+      UI_LABEL "Точка 4 (если точек >= 4)"
+   }
+
+   PARAM prb_sl_point5
+   {
+      TYPE p
+      UI_LABEL "Точка 5 (если точек >= 5)"
+   }
+
+   PARAM prb_sl_point6
+   {
+      TYPE p
+      UI_LABEL "Точка 6 (если точек >= 6)"
+   }
+
+   PARAM prb_sl_standoff
+   {
+      TYPE d
+      DEFVAL "5.0"
+      UI_LABEL "Расстояние подвода"
+   }
+
+   PARAM prb_sl_zsafe
+   {
+      TYPE d
+      DEFVAL "50.0"
+      UI_LABEL "Безопасная Z"
+   }
+
+   PARAM prb_sl_feed
+   {
+      TYPE d
+      DEFVAL "1000.0"
+      TOGGLE Off
+      UI_LABEL "Подача измерения"
+   }
+
+   PARAM prb_sl_move_feed
+   {
+      TYPE d
+      DEFVAL "3000.0"
+      TOGGLE Off
+      UI_LABEL "Подача перемещения"
+   }
+
+   PARAM prb_sl_probe_sw
+   {
+      TYPE o
+      DEFVAL "По станку"
+      OPTIONS "По станку","Да","Нет"
+      UI_LABEL "Включать щуп"
+   }
+
+   PARAM prb_sl_m60
+   {
+      TYPE o
+      DEFVAL "Да"
+      OPTIONS "Да","Нет"
+      UI_LABEL "M60/M61 (без шпинделя)"
+   }
+
+   PARAM prb_sl_move_cs
+   {
+      TYPE o
+      DEFVAL "Из операции"
+      OPTIONS "Из операции","G54","G55","G56","G57","G58","G59","G54.1"
+      UI_LABEL "СК движения щупа"
+   }
+
+   PARAM prb_sl_move_p
+   {
+      TYPE i
+      DEFVAL "1"
+      UI_LABEL "Р для G54.1 (движение)"
+   }
+
+   PARAM prb_sl_tol
+   {
+      TYPE d
+      DEFVAL "0.05"
+      UI_LABEL "Допуск уклона, мм"
+   }
+
+   PARAM prb_sl_tol_mode
+   {
+      TYPE o
+      DEFVAL "На длину"
+      OPTIONS "На длину","На 100 мм"
+      UI_LABEL "Допуск задан"
+   }
+
+   PARAM prb_sl_action
+   {
+      TYPE o
+      DEFVAL "Стоп с ошибкой"
+      OPTIONS "Стоп с ошибкой","Только показать"
+      UI_LABEL "Если вне допуска"
+   }
+
+   PARAM prb_sl_show
+   {
+      TYPE o
+      DEFVAL "Да"
+      OPTIONS "Да","Нет"
+      UI_LABEL "Стоп с результатом в допуске"
+   }
+
+   PARAM prb_sl_dprnt
+   {
+      TYPE o
+      DEFVAL "Нет"
+      OPTIONS "Нет","Да"
+      UI_LABEL "Вывод DPRNT"
    }
 }
